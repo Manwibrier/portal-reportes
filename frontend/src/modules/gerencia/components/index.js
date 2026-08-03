@@ -1,0 +1,7 @@
+export { default as GerenciaDistributionChart } from './GerenciaDistributionChart'
+export { default as GerenciaExecutiveBoard } from './GerenciaExecutiveBoard'
+export { default as GerenciaExecutiveMetric } from './GerenciaExecutiveMetric'
+export { default as GerenciaFiltroBar } from './GerenciaFiltroBar'
+export { default as GerenciaKpiSection } from './GerenciaKpiSection'
+export { default as GerenciaMonthlyChart } from './GerenciaMonthlyChart'
+export { default as GerenciaSegmentTabs } from './GerenciaSegmentTabs'

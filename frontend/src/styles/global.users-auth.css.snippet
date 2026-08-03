@@ -1,0 +1,116 @@
+/* Agregar al final de frontend/src/styles/global.css */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f5f8fb 0%, var(--bg-body) 100%);
+}
+
+.auth-card {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 26px;
+  border-radius: var(--border-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--portal-card-border);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-card__header h1 {
+  margin: 0;
+  color: var(--norte-blue-deep);
+  font-size: 1.7rem;
+}
+
+.auth-card__header p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+}
+
+.portal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.portal-field input,
+.portal-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d4dfeb;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.portal-field input:focus,
+.portal-field select:focus {
+  border-color: var(--norte-blue-soft);
+  box-shadow: var(--focus-ring);
+}
+
+.portal-feedback--danger {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.portal-feedback--success {
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.portal-action-button--danger {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.users-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.users-form,
+.users-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.users-filters {
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 220px) auto;
+}
+
+.users-form__actions,
+.users-table__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.users-table {
+  min-width: 760px;
+}
+
+@media (max-width: 920px) {
+  .users-form,
+  .users-filters {
+    grid-template-columns: 1fr;
+  }
+}
