@@ -1,0 +1,44 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Variables y credenciales
+.env
+.env.*
+!**/.env.example
+!frontend/.env.production
+
+# Compilaciones
+frontend/dist/
+dist/
+build/
+coverage/
+
+# Releases y respaldos
+release/
+*.zip
+frontend.backup-*/
+portal_reportes_fix_*/
+
+# PocketBase
+pb_data/
+pb_migrations/
+
+# Repomix
+repomix-output*.xml
+
+# Logs y temporales
+*.log
+*.tmp
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+# Lockfile raíz accidental
+/package-lock.json
+
+# Archivos temporales de Microsoft Office
+~$*

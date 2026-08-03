@@ -1,0 +1,18 @@
+export { default as ClientesFiltroBar } from './ClientesFiltroBar'
+export { default as ClientesKpiSection } from './ClientesKpiSection'
+export { default as ClientesDonutChart } from './ClientesDonutChart'
+export { default as ClientesServiceStatusChart } from './ClientesServiceStatusChart'
+
+export { default as ClientesCierreMensualFiltroBar } from './ClientesCierreMensualFiltroBar'
+export { default as ClientesCierreMensualKpiSection } from './ClientesCierreMensualKpiSection'
+export { default as ClientesCierreMensualDetalleTable } from './ClientesCierreMensualDetalleTable'
+export { default as ClientesCierreMensualResumenBoard } from './ClientesCierreMensualResumenBoard'
+
+export { default as ClientesResumenGeneralHero } from './ClientesResumenGeneralHero'
+export { default as ClientesResumenRegionalBoard } from './ClientesResumenRegionalBoard'
+export { default as ClientesRegionRow } from './ClientesRegionRow'
+export { default as ClientesFranchiseList } from './ClientesFranchiseList'
+export { default as ClientesFranchiseRow } from './ClientesFranchiseRow'
+export { default as ClientesMetricCardCompact } from './ClientesMetricCardCompact'
+export { default as ClientesStatusStackBar } from './ClientesStatusStackBar'
+export { default as ClientesResponsiveRegionCard } from './ClientesResponsiveRegionCard'
