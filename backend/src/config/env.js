@@ -1,4 +1,4 @@
-const path = require('path')
+﻿const path = require('path')
 const dotenv = require('dotenv')
 const { z } = require('zod')
 
@@ -19,27 +19,6 @@ const trimmedString = (defaultValue = '') =>
     .trim()
     .default(defaultValue)
 
-const rawEnv = {
-  ...process.env,
-
-  /**
-   * Compatibilidad:
-   * PocketBase ahora usa el concepto "superuser", pero en el backend
-   * mantenemos el nombre POCKETBASE_ADMIN_* para no romper servicios existentes.
-   */
-  POCKETBASE_ADMIN_EMAIL:
-    process.env.POCKETBASE_ADMIN_EMAIL ||
-    process.env.POCKETBASE_SUPERUSER_EMAIL ||
-    process.env.PB_ADMIN_EMAIL ||
-    '',
-
-  POCKETBASE_ADMIN_PASSWORD:
-    process.env.POCKETBASE_ADMIN_PASSWORD ||
-    process.env.POCKETBASE_SUPERUSER_PASSWORD ||
-    process.env.PB_ADMIN_PASSWORD ||
-    '',
-}
-
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -59,11 +38,7 @@ const envSchema = z.object({
   DB_APP_NAME: trimmedString('portal-reportes-backend'),
   DEFAULT_WINDOW_MONTHS: z.coerce.number().int().min(1).max(24).default(12),
 
-  POCKETBASE_URL: trimmedString('http://127.0.0.1:8090'),
-  POCKETBASE_ADMIN_EMAIL: trimmedString(''),
-  POCKETBASE_ADMIN_PASSWORD: z.string().trim().default(''),
-  POCKETBASE_USERS_COLLECTION: trimmedString('users'),
-  POCKETBASE_SESSION_AUDITS_COLLECTION: trimmedString('session_audits'),
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
 
   SMARTOLT_BASE_URL: trimmedString('https://cablenorte.smartolt.com/'),
   SMARTOLT_STATUS_PATH: trimmedString('api/onu/get_onus_statuses'),
@@ -79,7 +54,7 @@ const envSchema = z.object({
   OPERACIONES_ORDENES_TABLE: trimmedString('ordenes_servicio'),
 })
 
-const parsedEnv = envSchema.safeParse(rawEnv)
+const parsedEnv = envSchema.safeParse(process.env)
 
 if (!parsedEnv.success) {
   const issues = parsedEnv.error.issues

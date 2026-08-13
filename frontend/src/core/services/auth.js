@@ -82,7 +82,7 @@ function readStoredSession() {
 
     return normalizeSession(parsed)
   } catch (error) {
-    console.warn('No se pudo leer la sesiÃ³n persistida:', error)
+    console.warn('No se pudo leer la sesión persistida:', error)
     return null
   }
 }
@@ -182,7 +182,7 @@ export async function logoutCurrentSession() {
       })
     }
   } catch (error) {
-    console.warn('No se pudo cerrar la sesiÃ³n en el backend:', error)
+    console.warn('No se pudo cerrar la sesión en el backend:', error)
   }
 }
 
