@@ -17,4 +17,4 @@ No otorgar a la cuenta usada por Portal Reportes permisos `INSERT`, `UPDATE`, `D
 
 El backend agrega una segunda barrera: abre sus sesiones PostgreSQL con `default_transaction_read_only=on` y bloquea sentencias de escritura desde su wrapper SQL.
 
-La autenticacion, sesiones y auditoria del portal viven exclusivamente en PocketBase.
+La autenticacion, sesiones y auditoria del portal viven exclusivamente en la base SQLite local persistente del backend.

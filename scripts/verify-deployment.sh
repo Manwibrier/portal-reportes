@@ -14,7 +14,7 @@ curl -fsS "${BASE_URL}/api/health"
 echo
 
 echo
-echo "== Readiness: PostgreSQL read-only + PocketBase =="
+echo "== Readiness: PostgreSQL read-only + autenticacion local =="
 curl -fsS "${BASE_URL}/api/health/ready"
 echo
 

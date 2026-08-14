@@ -1,167 +1,61 @@
-# Despliegue corporativo en Portainer
+# Despliegue en Portainer
 
-## 1. Arquitectura definitiva
+## 1. Stack desde Git
 
-El stack contiene tres servicios:
+Crear un nuevo Stack usando **Repository** y configurar:
 
-- `frontend`: Nginx + React.
-- `backend`: API Node/Express.
-- `pocketbase`: autenticacion, sesiones y auditoria del portal.
+- Repository reference: `refs/heads/main`
+- Compose path: `compose.yaml`
 
-PostgreSQL NO forma parte del stack. Es una base corporativa externa usada exclusivamente como fuente de reportes.
+## 2. Variables de entorno
 
-```text
-Portainer / Docker
-  |-- frontend
-  |-- backend ---- SELECT ----> PostgreSQL corporativo
-  |       |
-  |       `---- auth/audit ---> pocketbase
-  `-- pocketbase ---- volume ---> pocketbase_data
+Configurar en Portainer, sin guardarlas en GitHub:
+
+```env
+PORTAL_BIND=0.0.0.0
+PORTAL_HTTP_PORT=8080
+FRONTEND_ORIGIN=http://__PORTAL_HOST__:8080
+
+DB_HOST=__POSTGRES_HOST__
+DB_PORT=5432
+DB_NAME=__POSTGRES_DATABASE__
+DB_USER=__POSTGRES_READONLY_USER__
+DB_PASSWORD=__POSTGRES_PASSWORD__
+DB_SSL=true
+
+SMARTOLT_BASE_URL=https://__SMARTOLT_HOST__/
+SMARTOLT_API_TOKEN=__SMARTOLT_API_TOKEN__
 ```
 
-## 2. Regla critica para PostgreSQL
+No existen variables de PocketBase.
 
-No ejecutar migraciones del portal contra la base corporativa.
-No crear esquemas o tablas de autenticacion en ella.
-No usar esa base para sesiones ni auditoria.
+## 3. Persistencia local
 
-La cuenta PostgreSQL del portal debe tener solamente los permisos de lectura requeridos. Los objetos esperados estan en `deploy/postgres/REQUIRED_OBJECTS.md`.
+El volumen `auth_data` contiene la base SQLite de usuarios, sesiones y auditoria.
+No eliminar el volumen al recrear o actualizar el stack.
 
-El backend ademas fuerza cada conexion PostgreSQL con `default_transaction_read_only=on` y su wrapper SQL rechaza sentencias de escritura.
+No usar `docker compose down -v` salvo que se quiera eliminar deliberadamente la autenticacion local.
 
-## 3. Variables de Portainer
+## 4. Primer administrador
 
-Use `.env.portainer.example` solo como lista de claves. No copie valores reales al repositorio.
+Una vez iniciado el backend, crear el primer administrador mediante el comando de bootstrap dentro del contenedor. Las variables de bootstrap son de un solo uso y no deben guardarse en GitHub.
 
-Grupos principales:
-
-```text
-Portal:
-  PORTAL_BIND
-  PORTAL_HTTP_PORT
-  FRONTEND_ORIGIN
-
-PostgreSQL corporativo read-only:
-  DB_HOST
-  DB_PORT
-  DB_NAME
-  DB_USER
-  DB_PASSWORD
-  DB_SSL
-
-PocketBase:
-  PB_SUPERUSER_EMAIL
-  PB_SUPERUSER_PASSWORD
-  PB_ENCRYPTION_KEY
-
-SmartOLT:
-  SMARTOLT_BASE_URL
-  SMARTOLT_API_TOKEN
+```sh
+BOOTSTRAP_ADMIN_NAME='Administrador' \
+BOOTSTRAP_ADMIN_EMAIL='admin@example.invalid' \
+BOOTSTRAP_ADMIN_PASSWORD='CAMBIAR_TEMPORALMENTE' \
+npm run bootstrap-admin
 ```
 
-`DB_READ_ONLY` se fija a `true` dentro de `compose.yaml` y no debe desactivarse en produccion.
+Sustituir los valores localmente antes de ejecutar y no copiar credenciales reales a documentacion o repositorios.
 
-## 4. Crear el Stack desde GitHub
+## 5. Healthchecks
 
-En Portainer:
+- `/api/health`: liveness del backend y almacenamiento local de autenticacion. Es el healthcheck usado por Docker.
+- `/api/health/ready`: comprueba ademas PostgreSQL de reportes y permisos `SELECT`.
 
-1. Abra **Stacks** -> **Add stack**.
-2. Seleccione **Git Repository**.
-3. Indique el repositorio y la rama estable.
-4. Use `compose.yaml` como Compose path.
-5. Cargue las variables reales en Portainer.
-6. Despliegue el stack.
+Un bloqueo de `pg_hba.conf` puede hacer que `/api/health/ready` devuelva 503, pero ya no impide que Docker levante frontend/backend.
 
-El frontend publica el puerto HTTP del portal. Backend queda interno en `backend:3000`. PocketBase se enlaza al host por `127.0.0.1:8090` por defecto.
+## 6. PostgreSQL corporativo
 
-## 5. PocketBase y persistencia
-
-El volumen Docker `pocketbase_data` contiene los datos propios del portal. Las migraciones incluidas crean:
-
-- coleccion auth `users`;
-- coleccion `sessions` para tokens opacos revocables;
-- coleccion `session_audits` para trazabilidad.
-
-Una actualizacion normal del stack no debe eliminar este volumen.
-
-## 6. Primer administrador
-
-Despues del primer despliegue cree el administrador desde una terminal segura del servidor. La clave se captura sin eco y no se escribe literalmente en el historial del shell:
-
-```bash
-BACKEND_ID="$(docker ps \
-  --filter label=com.docker.compose.project=portal-reportes \
-  --filter label=com.docker.compose.service=backend \
-  -q)"
-
-read -r -p "Nombre del administrador: " BOOTSTRAP_ADMIN_NAME
-read -r -p "Correo del administrador: " BOOTSTRAP_ADMIN_EMAIL
-printf "Clave del administrador: "
-stty -echo
-read -r BOOTSTRAP_ADMIN_PASSWORD
-stty echo
-printf '\n'
-
-docker exec \
-  -e BOOTSTRAP_ADMIN_NAME="$BOOTSTRAP_ADMIN_NAME" \
-  -e BOOTSTRAP_ADMIN_EMAIL="$BOOTSTRAP_ADMIN_EMAIL" \
-  -e BOOTSTRAP_ADMIN_PASSWORD="$BOOTSTRAP_ADMIN_PASSWORD" \
-  "$BACKEND_ID" npm run bootstrap-admin
-
-unset BOOTSTRAP_ADMIN_NAME BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
-```
-
-El bootstrap se niega a crear otro administrador si ya existe uno.
-
-## 7. Verificacion inicial
-
-Desde el servidor:
-
-```bash
-curl -fsS http://127.0.0.1:8080/api/health
-curl -fsS http://127.0.0.1:8080/api/health/ready
-```
-
-`/api/health/ready` valida dos dependencias:
-
-1. PostgreSQL responde, la sesion esta realmente en read-only, existen los objetos de reportes y la cuenta tiene `SELECT`.
-2. PocketBase responde y las colecciones `users`, `sessions` y `session_audits` son accesibles por el backend.
-
-Despues pruebe:
-
-- login/logout;
-- administracion de usuarios;
-- Gerencia;
-- Clientes;
-- Tickets;
-- Operaciones y SmartOLT.
-
-## 8. Backups
-
-El stack NO hace `pg_dump` de la base corporativa. Su backup corresponde al equipo o proceso que administra PostgreSQL.
-
-Portal Reportes debe respaldar su propio volumen PocketBase:
-
-```bash
-./scripts/backup.sh
-```
-
-Conserve copias fuera del mismo disco fisico del servidor Docker.
-
-## 9. Actualizaciones
-
-Flujo recomendado:
-
-```text
-desarrollo -> Pull Request -> main -> Portainer Pull and redeploy
-```
-
-El codigo se actualiza desde GitHub. Las credenciales permanecen en Portainer y los datos de usuarios permanecen en `pocketbase_data`.
-
-## 10. Seguridad de red
-
-- No publicar PostgreSQL hacia Internet.
-- Permitir desde el servidor Docker solamente la conectividad necesaria hacia PostgreSQL por LAN.
-- Mantener PocketBase en `127.0.0.1` salvo que exista una razon operativa para exponerlo.
-- No publicar el puerto 3000 del backend.
-- Usar HTTPS en el proxy corporativo antes de exponer el portal a usuarios finales.
+La aplicacion fuerza sesiones de PostgreSQL en modo solo lectura. El servidor PostgreSQL igualmente debe autorizar la IP del host Docker en `pg_hba.conf` y el usuario debe tener `SELECT` sobre los objetos de reportes necesarios.

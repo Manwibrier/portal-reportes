@@ -1,60 +1,20 @@
 # Portal de Reportes
 
-Portal full stack preparado para Docker y Portainer.
+Aplicacion corporativa de reportes desplegable con Docker/Portainer.
 
 ## Arquitectura
 
-- Frontend: React + Vite, servido por Nginx.
-- Backend: Node.js + Express.
-- PostgreSQL corporativo externo: fuente de datos de reportes, solo lectura.
-- PocketBase interno: usuarios, sesiones y auditoria del portal.
-- SmartOLT: integracion externa del modulo de operaciones.
+- **Frontend:** React/Vite servido por Nginx.
+- **Backend:** Node.js/Express.
+- **Reportes:** PostgreSQL corporativo externo, usado exclusivamente en modo lectura.
+- **Autenticacion:** SQLite local persistente dentro del volumen Docker `auth_data`.
+- **Integracion externa:** SmartOLT.
 
-```text
-Usuario
-  |
-  v
-Nginx / Frontend
-  |
-  v
-Backend
-  |-- SELECT --> PostgreSQL corporativo (powerbi)
-  |-- auth ----> PocketBase (volumen persistente)
-  `-- API -----> SmartOLT
-```
+PostgreSQL corporativo no recibe tablas, migraciones ni escrituras propias de esta aplicacion.
 
-## Regla de datos
+## Despliegue
 
-Portal Reportes no debe crear tablas, ejecutar migraciones ni escribir datos propios en PostgreSQL corporativo. La conexion del backend se fuerza a modo read-only.
+El stack se define en `compose.yaml` y contiene solamente `frontend` y `backend`.
+Las credenciales reales deben configurarse en Portainer y nunca subirse al repositorio.
 
-Los datos propios del portal se guardan en PocketBase:
-
-- `users`
-- `sessions`
-- `session_audits`
-
-## Despliegue rapido
-
-1. Use `.env.portainer.example` como referencia de variables.
-2. Cargue los valores reales solamente en Portainer.
-3. Valide y despliegue:
-
-```bash
-docker compose config
-docker compose build
-docker compose up -d
-./scripts/verify-deployment.sh
-```
-
-El portal publica HTTP en el puerto definido por `PORTAL_HTTP_PORT`.
-
-## Seguridad
-
-- No guardar `.env`, passwords, tokens ni dumps en Git.
-- PostgreSQL debe usar una cuenta con permisos de lectura sobre los objetos `powerbi` necesarios.
-- El backend fuerza `default_transaction_read_only=on` para PostgreSQL.
-- PocketBase se publica en `127.0.0.1` por defecto, no en toda la LAN.
-- El backend no publica directamente su puerto 3000.
-- El volumen `pocketbase_data` debe incluirse en la estrategia de backup.
-
-Consulte `PORTAINER_DEPLOY.md` para el procedimiento completo.
+Ver `PORTAINER_DEPLOY.md` para el procedimiento operativo.

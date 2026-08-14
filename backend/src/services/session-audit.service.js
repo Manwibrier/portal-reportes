@@ -1,16 +1,10 @@
 const crypto = require('crypto')
-const { env } = require('../config/env')
-const {
-  adminPocketBaseRequest,
-  recordsPath,
-} = require('../config/pocketbase')
+const { db } = require('../config/auth-database')
 const { formatRoles } = require('../utils/roles')
 
 function hashToken(token = '') {
   const value = String(token || '').trim()
-
   if (!value) return ''
-
   return crypto.createHash('sha256').update(value).digest('hex')
 }
 
@@ -30,9 +24,9 @@ function buildAuditPayload(event = {}) {
   const roleValue = event.role || event.user?.role || event.user?.roles || ''
 
   return {
-    user: event.user?.id || '',
+    userId: event.user?.id || null,
     action: event.action || '',
-    success: Boolean(event.success),
+    success: event.success ? 1 : 0,
     email: event.email || event.user?.email || '',
     role: Array.isArray(roleValue) ? formatRoles(roleValue) : String(roleValue || ''),
     tokenHash: hashToken(event.token),
@@ -46,15 +40,25 @@ async function writeSessionAudit(event = {}) {
   try {
     const payload = buildAuditPayload(event)
 
-    await adminPocketBaseRequest(
-      recordsPath(env.POCKETBASE_SESSION_AUDITS_COLLECTION),
-      {
-        method: 'POST',
-        body: payload,
-      }
+    db.prepare(`
+      INSERT INTO session_audits (
+        user_id, action, success, email, role, token_hash,
+        ip, user_agent, message, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      payload.userId,
+      payload.action,
+      payload.success,
+      payload.email,
+      payload.role,
+      payload.tokenHash,
+      payload.ip,
+      payload.userAgent,
+      payload.message,
+      new Date().toISOString()
     )
   } catch (error) {
-    console.warn('No se pudo registrar auditoria de sesion en PocketBase:', {
+    console.warn('No se pudo registrar auditoria de sesion local:', {
       action: event.action,
       message: error.message,
       code: error.code,

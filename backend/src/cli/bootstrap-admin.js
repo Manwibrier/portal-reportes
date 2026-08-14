@@ -1,4 +1,3 @@
-const { env } = require('../config/env')
 const { createUser, listUsers } = require('../services/users.service')
 
 function required(name) {
@@ -8,8 +7,6 @@ function required(name) {
 }
 
 async function main() {
-  void env
-
   const name = required('BOOTSTRAP_ADMIN_NAME')
   const email = required('BOOTSTRAP_ADMIN_EMAIL').toLowerCase()
   const password = required('BOOTSTRAP_ADMIN_PASSWORD')
@@ -36,7 +33,7 @@ async function main() {
     roles: ['admin'],
   })
 
-  console.log('Administrador inicial creado correctamente en PocketBase.')
+  console.log('Administrador inicial creado correctamente en SQLite local.')
 }
 
 main().catch((error) => {

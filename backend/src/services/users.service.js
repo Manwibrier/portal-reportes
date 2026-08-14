@@ -1,11 +1,8 @@
-const { env } = require('../config/env')
-const {
-  adminPocketBaseRequest,
-  quoteFilterValue,
-  recordsPath,
-} = require('../config/pocketbase')
+const crypto = require('crypto')
+const { db } = require('../config/auth-database')
 const { AppError } = require('../utils/app-error')
 const { ROLE_VALUES, normalizeRoles } = require('../utils/roles')
+const { hashPassword } = require('../utils/password')
 
 function normalizeText(value = '') {
   return String(value || '').trim()
@@ -15,8 +12,16 @@ function normalizeEmail(value = '') {
   return normalizeText(value).toLowerCase()
 }
 
+function parseRoles(value) {
+  try {
+    return normalizeRoles(JSON.parse(String(value || '[]')))
+  } catch (_error) {
+    return []
+  }
+}
+
 function sanitizeUser(record = {}) {
-  const roles = normalizeRoles(record.role || record.roles)
+  const roles = parseRoles(record.roles_json)
 
   return {
     id: record.id,
@@ -24,8 +29,8 @@ function sanitizeUser(record = {}) {
     email: record.email || '',
     role: roles,
     roles,
-    created: record.created,
-    updated: record.updated,
+    created: record.created_at,
+    updated: record.updated_at,
   }
 }
 
@@ -53,10 +58,22 @@ function assertValidRoles(value) {
   return roles
 }
 
-function isDuplicateEmailError(error) {
-  const data = error?.details?.data || {}
-  const emailError = data.email || data.username || null
-  return Number(error?.details?.pocketbaseStatus || 0) === 400 && Boolean(emailError)
+function getRawUserById(id) {
+  return db.prepare(`
+    SELECT id, name, email, password_hash, roles_json, active, created_at, updated_at
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+  `).get(id)
+}
+
+function getRawUserByEmail(email) {
+  return db.prepare(`
+    SELECT id, name, email, password_hash, roles_json, active, created_at, updated_at
+    FROM users
+    WHERE email = ? COLLATE NOCASE
+    LIMIT 1
+  `).get(email)
 }
 
 async function listUsers(params = {}) {
@@ -64,50 +81,49 @@ async function listUsers(params = {}) {
   const perPage = Math.min(Math.max(Number(params.perPage || 25), 1), 100)
   const search = normalizeText(params.search)
   const role = normalizeText(params.role)
-  const filters = []
+  const where = ['active = 1']
+  const bind = []
 
   if (search) {
-    const value = quoteFilterValue(search)
-    filters.push(`(name ~ ${value} || email ~ ${value})`)
+    where.push('(name LIKE ? COLLATE NOCASE OR email LIKE ? COLLATE NOCASE)')
+    const pattern = `%${search}%`
+    bind.push(pattern, pattern)
   }
 
   if (role) {
-    filters.push(`role ?= ${quoteFilterValue(role)}`)
+    where.push('roles_json LIKE ?')
+    bind.push(`%"${role}"%`)
   }
 
-  const result = await adminPocketBaseRequest(
-    recordsPath(env.POCKETBASE_USERS_COLLECTION),
-    {
-      query: {
-        page,
-        perPage,
-        sort: '-created,name',
-        filter: filters.join(' && '),
-      },
-    }
-  )
+  const whereSql = `WHERE ${where.join(' AND ')}`
+  const totalRow = db.prepare(`SELECT COUNT(*) AS total FROM users ${whereSql}`).get(...bind)
+  const totalItems = Number(totalRow?.total || 0)
+  const totalPages = Math.max(Math.ceil(totalItems / perPage), 1)
+  const offset = (page - 1) * perPage
+
+  const rows = db.prepare(`
+    SELECT id, name, email, roles_json, created_at, updated_at
+    FROM users
+    ${whereSql}
+    ORDER BY created_at DESC, name ASC
+    LIMIT ? OFFSET ?
+  `).all(...bind, perPage, offset)
 
   return {
-    page: Number(result?.page || page),
-    perPage: Number(result?.perPage || perPage),
-    totalItems: Number(result?.totalItems || 0),
-    totalPages: Math.max(Number(result?.totalPages || 1), 1),
-    items: Array.isArray(result?.items) ? result.items.map(sanitizeUser) : [],
+    page,
+    perPage,
+    totalItems,
+    totalPages,
+    items: rows.map(sanitizeUser),
   }
 }
 
 async function getUserById(id) {
-  try {
-    const record = await adminPocketBaseRequest(
-      recordsPath(env.POCKETBASE_USERS_COLLECTION, id)
-    )
-    return sanitizeUser(record)
-  } catch (error) {
-    if (Number(error?.details?.pocketbaseStatus || 0) === 404) {
-      throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
-    }
-    throw error
+  const record = getRawUserById(id)
+  if (!record || Number(record.active) !== 1) {
+    throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
   }
+  return sanitizeUser(record)
 }
 
 async function createUser(payload = {}) {
@@ -124,26 +140,26 @@ async function createUser(payload = {}) {
     )
   }
 
-  try {
-    const record = await adminPocketBaseRequest(
-      recordsPath(env.POCKETBASE_USERS_COLLECTION),
-      {
-        method: 'POST',
-        body: {
-          name,
-          email,
-          emailVisibility: true,
-          verified: true,
-          role: roles,
-          password,
-          passwordConfirm: password,
-        },
-      }
+  if (getRawUserByEmail(email)) {
+    throw new AppError(
+      'Ya existe un usuario con ese correo.',
+      409,
+      'USER_EMAIL_EXISTS'
     )
+  }
 
-    return sanitizeUser(record)
+  const now = new Date().toISOString()
+  const id = crypto.randomUUID()
+  const passwordHash = await hashPassword(password)
+
+  try {
+    db.prepare(`
+      INSERT INTO users (
+        id, name, email, password_hash, roles_json, active, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+    `).run(id, name, email, passwordHash, JSON.stringify(roles), now, now)
   } catch (error) {
-    if (isDuplicateEmailError(error)) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
       throw new AppError(
         'Ya existe un usuario con ese correo.',
         409,
@@ -152,9 +168,16 @@ async function createUser(payload = {}) {
     }
     throw error
   }
+
+  return sanitizeUser(getRawUserById(id))
 }
 
 async function updateUser(id, payload = {}) {
+  const existing = getRawUserById(id)
+  if (!existing || Number(existing.active) !== 1) {
+    throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
+  }
+
   const name = normalizeText(payload.name)
   const email = normalizeEmail(payload.email)
   const password = String(payload.password || '')
@@ -176,46 +199,33 @@ async function updateUser(id, payload = {}) {
     )
   }
 
-  const body = {
-    name,
-    email,
-    emailVisibility: true,
-    verified: true,
-    role: roles,
+  const duplicate = getRawUserByEmail(email)
+  if (duplicate && duplicate.id !== id) {
+    throw new AppError(
+      'Ya existe un usuario con ese correo.',
+      409,
+      'USER_EMAIL_EXISTS'
+    )
   }
+
+  const now = new Date().toISOString()
 
   if (password) {
-    body.password = password
-    body.passwordConfirm = password
+    const passwordHash = await hashPassword(password)
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, roles_json = ?, password_hash = ?, updated_at = ?
+      WHERE id = ?
+    `).run(name, email, JSON.stringify(roles), passwordHash, now, id)
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, roles_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(name, email, JSON.stringify(roles), now, id)
   }
 
-  try {
-    const record = await adminPocketBaseRequest(
-      recordsPath(env.POCKETBASE_USERS_COLLECTION, id),
-      {
-        method: 'PATCH',
-        body,
-      }
-    )
-
-    return sanitizeUser(record)
-  } catch (error) {
-    const status = Number(error?.details?.pocketbaseStatus || 0)
-
-    if (status === 404) {
-      throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
-    }
-
-    if (isDuplicateEmailError(error)) {
-      throw new AppError(
-        'Ya existe un usuario con ese correo.',
-        409,
-        'USER_EMAIL_EXISTS'
-      )
-    }
-
-    throw error
-  }
+  return sanitizeUser(getRawUserById(id))
 }
 
 async function deleteUser(id, currentUser = {}) {
@@ -227,17 +237,12 @@ async function deleteUser(id, currentUser = {}) {
     )
   }
 
-  try {
-    await adminPocketBaseRequest(
-      recordsPath(env.POCKETBASE_USERS_COLLECTION, id),
-      { method: 'DELETE' }
-    )
-  } catch (error) {
-    if (Number(error?.details?.pocketbaseStatus || 0) === 404) {
-      throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
-    }
-    throw error
+  const existing = getRawUserById(id)
+  if (!existing || Number(existing.active) !== 1) {
+    throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
   }
+
+  db.prepare('DELETE FROM users WHERE id = ?').run(id)
 
   return { ok: true }
 }

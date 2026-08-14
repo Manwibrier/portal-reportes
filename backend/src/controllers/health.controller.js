@@ -1,10 +1,5 @@
-const { env } = require('../config/env')
 const { query } = require('../config/database')
-const {
-  adminPocketBaseRequest,
-  getPocketBaseHealth,
-  recordsPath,
-} = require('../config/pocketbase')
+const { checkAuthDatabase } = require('../config/auth-database')
 
 const REQUIRED_REPORT_OBJECTS = [
   'powerbi.cargos_mensualidad_ingreso_mes',
@@ -19,6 +14,7 @@ function getHealth(_req, res) {
   res.json({
     status: 'ok',
     service: 'portal-reportes-backend',
+    auth: checkAuthDatabase() ? 'sqlite_ok' : 'sqlite_error',
     timestamp: new Date().toISOString(),
   })
 }
@@ -46,41 +42,23 @@ async function checkPostgres() {
     .filter((row) => row.object_exists && !row.can_select)
     .map((row) => row.object_name)
 
-  return {
-    readOnly,
-    missingObjects,
-    missingSelect,
-  }
-}
-
-async function checkPocketBase() {
-  await getPocketBaseHealth()
-
-  const collections = [
-    env.POCKETBASE_USERS_COLLECTION,
-    env.POCKETBASE_SESSIONS_COLLECTION,
-    env.POCKETBASE_SESSION_AUDITS_COLLECTION,
-  ]
-
-  await Promise.all(
-    collections.map((collection) =>
-      adminPocketBaseRequest(recordsPath(collection), {
-        query: {
-          page: 1,
-          perPage: 1,
-          fields: 'id',
-        },
-      })
-    )
-  )
+  return { readOnly, missingObjects, missingSelect }
 }
 
 async function getReadiness(_req, res) {
   try {
-    const [postgres] = await Promise.all([
-      checkPostgres(),
-      checkPocketBase(),
-    ])
+    const authReady = checkAuthDatabase()
+    if (!authReady) {
+      res.status(503).json({
+        status: 'not_ready',
+        service: 'portal-reportes-backend',
+        reason: 'auth_storage_unavailable',
+        timestamp: new Date().toISOString(),
+      })
+      return
+    }
+
+    const postgres = await checkPostgres()
 
     if (!postgres.readOnly) {
       res.status(503).json({
@@ -110,7 +88,7 @@ async function getReadiness(_req, res) {
       status: 'ready',
       service: 'portal-reportes-backend',
       postgres: 'read_only_ready',
-      pocketbase: 'ready',
+      auth: 'sqlite_ready',
       timestamp: new Date().toISOString(),
     })
   } catch (error) {

@@ -42,13 +42,7 @@ const envSchema = z.object({
   DB_APP_NAME: trimmedString('portal-reportes-backend'),
   DEFAULT_WINDOW_MONTHS: z.coerce.number().int().min(1).max(24).default(12),
 
-  POCKETBASE_URL: requiredString('POCKETBASE_URL'),
-  POCKETBASE_ADMIN_EMAIL: requiredString('POCKETBASE_ADMIN_EMAIL'),
-  POCKETBASE_ADMIN_PASSWORD: requiredString('POCKETBASE_ADMIN_PASSWORD'),
-  POCKETBASE_USERS_COLLECTION: trimmedString('users'),
-  POCKETBASE_SESSIONS_COLLECTION: trimmedString('sessions'),
-  POCKETBASE_SESSION_AUDITS_COLLECTION: trimmedString('session_audits'),
-  POCKETBASE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  AUTH_DB_PATH: trimmedString('./data/auth.sqlite'),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().max(168).default(12),
 
   SMARTOLT_BASE_URL: requiredString('SMARTOLT_BASE_URL'),
