@@ -9,7 +9,7 @@ La pila contiene:
 - `postgres`: PostgreSQL 17 con volumen persistente.
 - `pocketbase`: autenticación y auditoría con volumen persistente.
 
-El único puerto público obligatorio es `8080` (configurable). Nginx sirve el portal y reenvía `/api/*` al backend.
+El único puerto público obligatorio es `8083` (configurable). Nginx sirve el portal y reenvía `/api/*` al backend.
 
 ## 2. Información que debe conservarse del servidor anterior
 
@@ -54,8 +54,8 @@ Después puede administrar los contenedores desde Portainer porque forman una pi
 
 ## 5. Acceso
 
-- Portal: `http://IP_DEL_SERVIDOR:8080`
-- Health: `http://IP_DEL_SERVIDOR:8080/api/health`
+- Portal: `http://IP_DEL_SERVIDOR:8083`
+- Health: `http://IP_DEL_SERVIDOR:8083/api/health`
 - PocketBase local: `http://127.0.0.1:8090/_/`
 
 Para abrir PocketBase desde otro equipo sin publicarlo:
@@ -116,7 +116,7 @@ Si no se restaura una base anterior, la migración incluida crea automáticament
 docker compose ps
 docker compose logs --tail=100 backend
 docker compose logs --tail=100 pocketbase
-curl -fsS http://127.0.0.1:8080/api/health
+curl -fsS http://127.0.0.1:8083/api/health
 ```
 
 Pruebe después:
