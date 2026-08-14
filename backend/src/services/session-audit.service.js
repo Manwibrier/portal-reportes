@@ -1,5 +1,9 @@
-﻿const crypto = require('crypto')
-const { query } = require('../config/database')
+const crypto = require('crypto')
+const { env } = require('../config/env')
+const {
+  adminPocketBaseRequest,
+  recordsPath,
+} = require('../config/pocketbase')
 const { formatRoles } = require('../utils/roles')
 
 function hashToken(token = '') {
@@ -26,6 +30,7 @@ function buildAuditPayload(event = {}) {
   const roleValue = event.role || event.user?.role || event.user?.roles || ''
 
   return {
+    user: event.user?.id || '',
     action: event.action || '',
     success: Boolean(event.success),
     email: event.email || event.user?.email || '',
@@ -34,7 +39,6 @@ function buildAuditPayload(event = {}) {
     ip: event.requestMeta?.ip || '',
     userAgent: event.requestMeta?.userAgent || '',
     message: event.message || '',
-    userId: event.user?.id || null,
   }
 }
 
@@ -42,27 +46,15 @@ async function writeSessionAudit(event = {}) {
   try {
     const payload = buildAuditPayload(event)
 
-    await query(
-      `
-        INSERT INTO portal_auth.session_audits
-          (user_id, action, success, email, role, token_hash, ip, user_agent, message)
-        VALUES
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-      `,
-      [
-        payload.userId,
-        payload.action,
-        payload.success,
-        payload.email,
-        payload.role,
-        payload.tokenHash,
-        payload.ip,
-        payload.userAgent,
-        payload.message,
-      ]
+    await adminPocketBaseRequest(
+      recordsPath(env.POCKETBASE_SESSION_AUDITS_COLLECTION),
+      {
+        method: 'POST',
+        body: payload,
+      }
     )
   } catch (error) {
-    console.warn('No se pudo registrar auditoría de sesión:', {
+    console.warn('No se pudo registrar auditoria de sesion en PocketBase:', {
       action: event.action,
       message: error.message,
       code: error.code,

@@ -1,113 +1,164 @@
 const { env } = require('./env')
 const { AppError } = require('../utils/app-error')
 
-let PocketBaseConstructorPromise = null
-let adminClient = null
-let adminClientPromise = null
+let superuserToken = ''
+let superuserAuthPromise = null
 
-async function getPocketBaseConstructor() {
-  if (!PocketBaseConstructorPromise) {
-    PocketBaseConstructorPromise = import('pocketbase').then((module) => {
-      const PocketBase = module.default || module
+function quoteFilterValue(value = '') {
+  const escaped = String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
 
-      if (typeof PocketBase !== 'function') {
+  return `"${escaped}"`
+}
+
+function recordsPath(collection, recordId = '') {
+  const base = `/api/collections/${encodeURIComponent(collection)}/records`
+  return recordId ? `${base}/${encodeURIComponent(recordId)}` : base
+}
+
+function buildUrl(pathname, query = {}) {
+  const base = env.POCKETBASE_URL.endsWith('/')
+    ? env.POCKETBASE_URL
+    : `${env.POCKETBASE_URL}/`
+  const url = new URL(String(pathname || '').replace(/^\//, ''), base)
+
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    url.searchParams.set(key, String(value))
+  })
+
+  return url
+}
+
+async function parseResponse(response) {
+  const text = await response.text()
+  if (!text) return null
+
+  try {
+    return JSON.parse(text)
+  } catch (_) {
+    return { message: text.slice(0, 1000) }
+  }
+}
+
+function pocketBaseHttpError(response, payload) {
+  const status = Number(response.status || 500)
+  const clientStatus = status >= 500 ? 502 : status
+  const message = payload?.message || 'PocketBase rechazo la solicitud.'
+
+  return new AppError(message, clientStatus, 'POCKETBASE_REQUEST_FAILED', {
+    pocketbaseStatus: status,
+    data: payload?.data || null,
+  })
+}
+
+async function pocketBaseRequest(pathname, options = {}) {
+  const {
+    method = 'GET',
+    body,
+    token = '',
+    query,
+  } = options
+
+  const headers = {
+    Accept: 'application/json',
+  }
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (token) {
+    headers.Authorization = token
+  }
+
+  let response
+
+  try {
+    response = await fetch(buildUrl(pathname, query), {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(env.POCKETBASE_TIMEOUT_MS),
+    })
+  } catch (error) {
+    throw new AppError(
+      'PocketBase no esta disponible.',
+      502,
+      'POCKETBASE_UNAVAILABLE',
+      { cause: error.name || 'network_error' }
+    )
+  }
+
+  const payload = await parseResponse(response)
+
+  if (!response.ok) {
+    throw pocketBaseHttpError(response, payload)
+  }
+
+  return payload
+}
+
+async function authenticateSuperuser() {
+  if (superuserToken) return superuserToken
+  if (superuserAuthPromise) return superuserAuthPromise
+
+  superuserAuthPromise = pocketBaseRequest(
+    '/api/collections/_superusers/auth-with-password',
+    {
+      method: 'POST',
+      body: {
+        identity: env.POCKETBASE_ADMIN_EMAIL,
+        password: env.POCKETBASE_ADMIN_PASSWORD,
+      },
+    }
+  )
+    .then((payload) => {
+      const token = String(payload?.token || '').trim()
+
+      if (!token) {
         throw new AppError(
-          'No se pudo cargar el SDK de PocketBase.',
-          500,
-          'POCKETBASE_SDK_LOAD_FAILED'
+          'PocketBase no devolvio un token de superusuario.',
+          502,
+          'POCKETBASE_ADMIN_AUTH_FAILED'
         )
       }
 
-      return PocketBase
-    })
-  }
-
-  return PocketBaseConstructorPromise
-}
-
-async function createPocketBaseClient() {
-  if (!env.POCKETBASE_URL) {
-    throw new AppError(
-      'Falta POCKETBASE_URL en el archivo .env del backend.',
-      500,
-      'POCKETBASE_URL_NOT_CONFIGURED'
-    )
-  }
-
-  const PocketBase = await getPocketBaseConstructor()
-  const client = new PocketBase(env.POCKETBASE_URL)
-
-  if (typeof client.autoCancellation === 'function') {
-    client.autoCancellation(false)
-  }
-
-  return client
-}
-
-function assertAdminCredentials() {
-  if (!env.POCKETBASE_ADMIN_EMAIL || !env.POCKETBASE_ADMIN_PASSWORD) {
-    throw new AppError(
-      'Faltan POCKETBASE_ADMIN_EMAIL y POCKETBASE_ADMIN_PASSWORD en el archivo .env del backend.',
-      500,
-      'POCKETBASE_ADMIN_NOT_CONFIGURED'
-    )
-  }
-}
-
-async function authenticateAdminClient(client) {
-  assertAdminCredentials()
-
-  try {
-    await client
-      .collection('_superusers')
-      .authWithPassword(env.POCKETBASE_ADMIN_EMAIL, env.POCKETBASE_ADMIN_PASSWORD)
-
-    return client
-  } catch (error) {
-    if (Number(error?.status) !== 404) {
-      throw error
-    }
-  }
-
-  if (client.admins?.authWithPassword) {
-    await client.admins.authWithPassword(
-      env.POCKETBASE_ADMIN_EMAIL,
-      env.POCKETBASE_ADMIN_PASSWORD
-    )
-
-    return client
-  }
-
-  throw new AppError(
-    'No se pudo autenticar el superusuario de PocketBase.',
-    500,
-    'POCKETBASE_ADMIN_AUTH_FAILED'
-  )
-}
-
-async function getAdminPocketBase() {
-  if (adminClient?.authStore?.isValid) {
-    return adminClient
-  }
-
-  if (adminClientPromise) {
-    return adminClientPromise
-  }
-
-  adminClientPromise = createPocketBaseClient()
-    .then((client) => authenticateAdminClient(client))
-    .then((client) => {
-      adminClient = client
-      return adminClient
+      superuserToken = token
+      return token
     })
     .finally(() => {
-      adminClientPromise = null
+      superuserAuthPromise = null
     })
 
-  return adminClientPromise
+  return superuserAuthPromise
+}
+
+async function adminPocketBaseRequest(pathname, options = {}) {
+  let token = await authenticateSuperuser()
+
+  try {
+    return await pocketBaseRequest(pathname, { ...options, token })
+  } catch (error) {
+    const pbStatus = Number(error?.details?.pocketbaseStatus || 0)
+
+    if (pbStatus !== 401) throw error
+
+    superuserToken = ''
+    token = await authenticateSuperuser()
+    return pocketBaseRequest(pathname, { ...options, token })
+  }
+}
+
+async function getPocketBaseHealth() {
+  return pocketBaseRequest('/api/health')
 }
 
 module.exports = {
-  createPocketBaseClient,
-  getAdminPocketBase,
+  adminPocketBaseRequest,
+  getPocketBaseHealth,
+  pocketBaseRequest,
+  quoteFilterValue,
+  recordsPath,
 }

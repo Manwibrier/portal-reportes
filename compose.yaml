@@ -7,27 +7,6 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-portal_reportes}
-      POSTGRES_USER: ${POSTGRES_USER:-portal_reportes}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
-      TZ: ${TZ:-America/Caracas}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - portal_internal
-    logging: *default-logging
-
   pocketbase:
     build:
       context: ./deploy/pocketbase
@@ -38,9 +17,6 @@ services:
       PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:?PB_SUPERUSER_EMAIL es obligatorio}
       PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:?PB_SUPERUSER_PASSWORD es obligatorio}
       PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
-      PORTAL_ADMIN_NAME: ${PORTAL_ADMIN_NAME:-Administrador}
-      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:?PORTAL_ADMIN_EMAIL es obligatorio}
-      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD:?PORTAL_ADMIN_PASSWORD es obligatorio}
       TZ: ${TZ:-America/Caracas}
       GOMEMLIMIT: ${PB_GOMEMLIMIT:-512MiB}
     volumes:
@@ -65,34 +41,38 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-*}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?FRONTEND_ORIGIN es obligatorio}
 
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-portal_reportes}
-      DB_USER: ${POSTGRES_USER:-portal_reportes}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
-      DB_SSL: "false"
+      DB_HOST: ${DB_HOST:?DB_HOST es obligatorio}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:?DB_NAME es obligatorio}
+      DB_USER: ${DB_USER:?DB_USER es obligatorio}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatorio}
+      DB_SSL: ${DB_SSL:-false}
+      DB_READ_ONLY: "true"
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-10000}
       DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-120000}
       DB_QUERY_TIMEOUT_MS: ${DB_QUERY_TIMEOUT_MS:-120000}
-      DB_APP_NAME: portal-reportes-backend
+      DB_APP_NAME: ${DB_APP_NAME:-portal-reportes-backend}
       DEFAULT_WINDOW_MONTHS: ${DEFAULT_WINDOW_MONTHS:-12}
 
       POCKETBASE_URL: http://pocketbase:8090
       POCKETBASE_ADMIN_EMAIL: ${PB_SUPERUSER_EMAIL:?PB_SUPERUSER_EMAIL es obligatorio}
       POCKETBASE_ADMIN_PASSWORD: ${PB_SUPERUSER_PASSWORD:?PB_SUPERUSER_PASSWORD es obligatorio}
-      POCKETBASE_USERS_COLLECTION: users
-      POCKETBASE_SESSION_AUDITS_COLLECTION: session_audits
+      POCKETBASE_USERS_COLLECTION: ${POCKETBASE_USERS_COLLECTION:-users}
+      POCKETBASE_SESSIONS_COLLECTION: ${POCKETBASE_SESSIONS_COLLECTION:-sessions}
+      POCKETBASE_SESSION_AUDITS_COLLECTION: ${POCKETBASE_SESSION_AUDITS_COLLECTION:-session_audits}
+      POCKETBASE_TIMEOUT_MS: ${POCKETBASE_TIMEOUT_MS:-10000}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-12}
 
-      SMARTOLT_BASE_URL: ${SMARTOLT_BASE_URL:-https://cablenorte.smartolt.com/}
+      SMARTOLT_BASE_URL: ${SMARTOLT_BASE_URL:?SMARTOLT_BASE_URL es obligatorio}
       SMARTOLT_STATUS_PATH: ${SMARTOLT_STATUS_PATH:-api/onu/get_onus_statuses}
       SMARTOLT_DETAILS_PATH: ${SMARTOLT_DETAILS_PATH:-}
       SMARTOLT_SIGNALS_PATH: ${SMARTOLT_SIGNALS_PATH:-api/onu/get_onus_signals}
       SMARTOLT_OLTS_PATH: ${SMARTOLT_OLTS_PATH:-}
-      SMARTOLT_API_TOKEN: ${SMARTOLT_API_TOKEN:-}
+      SMARTOLT_API_TOKEN: ${SMARTOLT_API_TOKEN:?SMARTOLT_API_TOKEN es obligatorio}
       SMARTOLT_AUTH_HEADER: ${SMARTOLT_AUTH_HEADER:-X-Token}
       SMARTOLT_AUTH_SCHEME: ${SMARTOLT_AUTH_SCHEME:-}
       SMARTOLT_TIMEOUT_MS: ${SMARTOLT_TIMEOUT_MS:-90000}
@@ -101,18 +81,16 @@ services:
       OPERACIONES_ORDENES_TABLE: ${OPERACIONES_ORDENES_TABLE:-ordenes_servicio}
       TZ: ${TZ:-America/Caracas}
     depends_on:
-      postgres:
-        condition: service_healthy
       pocketbase:
         condition: service_healthy
     expose:
       - "3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 15s
-      timeout: 5s
+      timeout: 8s
       retries: 8
-      start_period: 20s
+      start_period: 30s
     networks:
       - portal_internal
     logging: *default-logging
@@ -127,7 +105,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${PORTAL_BIND:-0.0.0.0}:${PORTAL_HTTP_PORT:-8083}:80"
+      - "${PORTAL_BIND:-0.0.0.0}:${PORTAL_HTTP_PORT:-8080}:80"
     networks:
       - portal_internal
     logging: *default-logging
@@ -137,5 +115,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
   pocketbase_data:

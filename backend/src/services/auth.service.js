@@ -1,6 +1,11 @@
-﻿const crypto = require('crypto')
+const crypto = require('crypto')
 const { env } = require('../config/env')
-const { query } = require('../config/database')
+const {
+  adminPocketBaseRequest,
+  pocketBaseRequest,
+  quoteFilterValue,
+  recordsPath,
+} = require('../config/pocketbase')
 const { AppError } = require('../utils/app-error')
 const { normalizeRoles, formatRoles } = require('../utils/roles')
 const { writeSessionAudit } = require('./session-audit.service')
@@ -23,85 +28,149 @@ function createAccessToken() {
   return crypto.randomBytes(48).toString('base64url')
 }
 
-function hashPassword(password = '') {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex')
-  return `scrypt$${salt}$${hash}`
-}
-
-function verifyPassword(password = '', storedHash = '') {
-  const [scheme, salt, hash] = String(storedHash || '').split('$')
-
-  if (scheme !== 'scrypt' || !salt || !hash) {
-    return false
-  }
-
-  const candidate = crypto.scryptSync(String(password), salt, 64)
-  const expected = Buffer.from(hash, 'hex')
-
-  return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate)
-}
-
 function normalizeUser(record = {}) {
   const roles = normalizeRoles(record.role || record.roles)
 
   return {
     id: record.id,
-    name: record.name || record.nombre || record.email || 'Usuario',
+    name: record.name || record.email || 'Usuario',
     email: record.email || '',
     role: roles,
     roles,
   }
 }
 
-async function findActiveUserByEmail(email = '') {
-  const result = await query(
-    `
-      SELECT id, name, email, password_hash, roles
-      FROM portal_auth.users
-      WHERE LOWER(email) = LOWER($1)
-        AND is_active = TRUE
-      LIMIT 1;
-    `,
-    [email]
+function toDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)
+    ? raw.replace(' ', 'T')
+    : raw
+  const parsed = new Date(normalized)
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+async function authenticateUser(email, password) {
+  return pocketBaseRequest(
+    `/api/collections/${encodeURIComponent(env.POCKETBASE_USERS_COLLECTION)}/auth-with-password`,
+    {
+      method: 'POST',
+      body: {
+        identity: email,
+        password,
+      },
+    }
+  )
+}
+
+async function createSession(user) {
+  const token = createAccessToken()
+  const tokenHash = hashToken(token)
+  const now = new Date()
+  const expiresAt = new Date(
+    now.getTime() + env.AUTH_SESSION_TTL_HOURS * 60 * 60 * 1000
   )
 
-  return result.rows[0] || null
+  await adminPocketBaseRequest(
+    recordsPath(env.POCKETBASE_SESSIONS_COLLECTION),
+    {
+      method: 'POST',
+      body: {
+        user: user.id,
+        tokenHash,
+        expiresAt: expiresAt.toISOString(),
+        lastSeenAt: now.toISOString(),
+      },
+    }
+  )
+
+  return token
+}
+
+async function findSessionRecord(token) {
+  const tokenHash = hashToken(token)
+  if (!tokenHash) return null
+
+  const result = await adminPocketBaseRequest(
+    recordsPath(env.POCKETBASE_SESSIONS_COLLECTION),
+    {
+      query: {
+        page: 1,
+        perPage: 1,
+        filter: `tokenHash = ${quoteFilterValue(tokenHash)}`,
+      },
+    }
+  )
+
+  return result?.items?.[0] || null
+}
+
+async function getUserRecord(userId) {
+  if (!userId) return null
+
+  try {
+    return await adminPocketBaseRequest(
+      recordsPath(env.POCKETBASE_USERS_COLLECTION, userId)
+    )
+  } catch (error) {
+    if (Number(error?.details?.pocketbaseStatus || 0) === 404) {
+      return null
+    }
+    throw error
+  }
 }
 
 async function loginWithPassword(payload = {}, requestMeta = {}) {
   const email = normalizeEmail(payload.email)
   const password = String(payload.password || '')
+  let authData
 
-  const userRecord = await findActiveUserByEmail(email)
+  try {
+    authData = await authenticateUser(email, password)
+  } catch (error) {
+    const status = Number(error?.details?.pocketbaseStatus || error?.statusCode || 0)
 
-  if (!userRecord || !verifyPassword(password, userRecord.password_hash)) {
+    if (status === 400 || status === 401) {
+      await writeSessionAudit({
+        action: 'login',
+        success: false,
+        email,
+        requestMeta,
+        message: 'Login fallido',
+      })
+
+      throw new AppError(
+        'Credenciales invalidas o usuario no disponible.',
+        401,
+        'UNAUTHORIZED'
+      )
+    }
+
+    throw error
+  }
+
+  const user = normalizeUser(authData?.record || {})
+
+  if (!user.id || user.roles.length === 0) {
     await writeSessionAudit({
       action: 'login',
       success: false,
+      user,
       email,
       requestMeta,
-      message: 'Login fallido',
+      message: 'Usuario sin permisos configurados',
     })
 
     throw new AppError(
-      'Credenciales inválidas o usuario no disponible.',
-      401,
-      'UNAUTHORIZED'
+      'El usuario no tiene permisos configurados.',
+      403,
+      'USER_ROLE_REQUIRED'
     )
   }
 
-  const token = createAccessToken()
-  const tokenHash = hashToken(token)
-  const user = normalizeUser(userRecord)
-
-  await query(
-    `
-      INSERT INTO portal_auth.sessions (user_id, token_hash, expires_at, last_seen_at)
-      VALUES ($1, $2, NOW() + ($3::int * INTERVAL '1 hour'), NOW());
-    `,
-    [user.id, tokenHash, env.AUTH_SESSION_TTL_HOURS]
-  )
+  const token = await createSession(user)
 
   await writeSessionAudit({
     action: 'login',
@@ -122,48 +191,33 @@ async function loginWithPassword(payload = {}, requestMeta = {}) {
 
 async function resolveSessionFromToken(token) {
   const cleanToken = normalizeText(token)
-
   if (!cleanToken) return null
 
-  const tokenHash = hashToken(cleanToken)
+  const sessionRecord = await findSessionRecord(cleanToken)
+  if (!sessionRecord || sessionRecord.revokedAt) return null
 
-  const result = await query(
-    `
-      SELECT
-        s.id AS session_id,
-        s.token_hash,
-        u.id,
-        u.name,
-        u.email,
-        u.roles
-      FROM portal_auth.sessions s
-      JOIN portal_auth.users u
-        ON u.id = s.user_id
-      WHERE s.token_hash = $1
-        AND s.revoked_at IS NULL
-        AND s.expires_at > NOW()
-        AND u.is_active = TRUE
-      LIMIT 1;
-    `,
-    [tokenHash]
-  )
+  const expiresAt = toDate(sessionRecord.expiresAt)
+  if (!expiresAt || expiresAt.getTime() <= Date.now()) return null
 
-  const row = result.rows[0]
+  const userRecord = await getUserRecord(sessionRecord.user)
+  if (!userRecord) return null
 
-  if (!row) return null
+  const user = normalizeUser(userRecord)
+  if (user.roles.length === 0) return null
 
-  await query(
-    `
-      UPDATE portal_auth.sessions
-      SET last_seen_at = NOW()
-      WHERE id = $1;
-    `,
-    [row.session_id]
+  await adminPocketBaseRequest(
+    recordsPath(env.POCKETBASE_SESSIONS_COLLECTION, sessionRecord.id),
+    {
+      method: 'PATCH',
+      body: {
+        lastSeenAt: new Date().toISOString(),
+      },
+    }
   )
 
   return {
     token: cleanToken,
-    user: normalizeUser(row),
+    user,
   }
 }
 
@@ -176,45 +230,47 @@ async function auditTokenValidation(session, requestMeta = {}) {
     role: formatRoles(session?.user?.role),
     token: session?.token,
     requestMeta,
-    message: session?.user ? 'Token válido' : 'Token inválido',
+    message: session?.user ? 'Token valido' : 'Token invalido',
   })
 }
 
 async function logoutSession(token, requestMeta = {}) {
-  const session = await resolveSessionFromToken(token)
-  const tokenHash = hashToken(token)
+  const cleanToken = normalizeText(token)
+  const sessionRecord = await findSessionRecord(cleanToken)
+  let user = null
 
-  if (tokenHash) {
-    await query(
-      `
-        UPDATE portal_auth.sessions
-        SET revoked_at = NOW()
-        WHERE token_hash = $1
-          AND revoked_at IS NULL;
-      `,
-      [tokenHash]
-    )
+  if (sessionRecord) {
+    user = normalizeUser(await getUserRecord(sessionRecord.user) || {})
+
+    if (!sessionRecord.revokedAt) {
+      await adminPocketBaseRequest(
+        recordsPath(env.POCKETBASE_SESSIONS_COLLECTION, sessionRecord.id),
+        {
+          method: 'PATCH',
+          body: {
+            revokedAt: new Date().toISOString(),
+          },
+        }
+      )
+    }
   }
 
   await writeSessionAudit({
     action: 'logout',
-    success: Boolean(session?.user),
-    user: session?.user,
-    email: session?.user?.email,
-    role: formatRoles(session?.user?.role),
-    token,
+    success: Boolean(user?.id),
+    user: user?.id ? user : null,
+    email: user?.email,
+    role: formatRoles(user?.role),
+    token: cleanToken,
     requestMeta,
-    message: session?.user ? 'Logout registrado' : 'Logout sin sesión activa',
+    message: user?.id ? 'Logout registrado' : 'Logout sin sesion activa',
   })
 
-  return {
-    ok: true,
-  }
+  return { ok: true }
 }
 
 module.exports = {
   auditTokenValidation,
-  hashPassword,
   loginWithPassword,
   logoutSession,
   normalizeUser,

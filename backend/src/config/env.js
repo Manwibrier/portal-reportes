@@ -1,4 +1,4 @@
-﻿const path = require('path')
+const path = require('path')
 const dotenv = require('dotenv')
 const { z } = require('zod')
 
@@ -6,11 +6,11 @@ dotenv.config({
   path: process.env.DOTENV_CONFIG_PATH || path.resolve(process.cwd(), '.env'),
 })
 
-const booleanString = z
+const booleanString = (defaultValue = 'false') => z
   .string()
   .trim()
   .toLowerCase()
-  .default('false')
+  .default(defaultValue)
   .transform((value) => value === 'true')
 
 const trimmedString = (defaultValue = '') =>
@@ -19,17 +19,21 @@ const trimmedString = (defaultValue = '') =>
     .trim()
     .default(defaultValue)
 
+const requiredString = (name) =>
+  z.string().trim().min(1, `${name} es requerido`)
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   FRONTEND_ORIGIN: trimmedString('*'),
 
-  DB_HOST: z.string().trim().min(1, 'DB_HOST es requerido'),
+  DB_HOST: requiredString('DB_HOST'),
   DB_PORT: z.coerce.number().int().positive().default(5432),
-  DB_NAME: z.string().trim().min(1, 'DB_NAME es requerido'),
-  DB_USER: z.string().trim().min(1, 'DB_USER es requerido'),
+  DB_NAME: requiredString('DB_NAME'),
+  DB_USER: requiredString('DB_USER'),
   DB_PASSWORD: z.string().default(''),
-  DB_SSL: booleanString,
+  DB_SSL: booleanString(),
+  DB_READ_ONLY: booleanString('true'),
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
@@ -38,9 +42,16 @@ const envSchema = z.object({
   DB_APP_NAME: trimmedString('portal-reportes-backend'),
   DEFAULT_WINDOW_MONTHS: z.coerce.number().int().min(1).max(24).default(12),
 
-  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
+  POCKETBASE_URL: requiredString('POCKETBASE_URL'),
+  POCKETBASE_ADMIN_EMAIL: requiredString('POCKETBASE_ADMIN_EMAIL'),
+  POCKETBASE_ADMIN_PASSWORD: requiredString('POCKETBASE_ADMIN_PASSWORD'),
+  POCKETBASE_USERS_COLLECTION: trimmedString('users'),
+  POCKETBASE_SESSIONS_COLLECTION: trimmedString('sessions'),
+  POCKETBASE_SESSION_AUDITS_COLLECTION: trimmedString('session_audits'),
+  POCKETBASE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().max(168).default(12),
 
-  SMARTOLT_BASE_URL: trimmedString('https://cablenorte.smartolt.com/'),
+  SMARTOLT_BASE_URL: requiredString('SMARTOLT_BASE_URL'),
   SMARTOLT_STATUS_PATH: trimmedString('api/onu/get_onus_statuses'),
   SMARTOLT_DETAILS_PATH: trimmedString(''),
   SMARTOLT_SIGNALS_PATH: trimmedString('api/onu/get_onus_signals'),
@@ -61,7 +72,7 @@ if (!parsedEnv.success) {
     .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
     .join('\n- ')
 
-  throw new Error(`Configuración inválida de entorno:\n- ${issues}`)
+  throw new Error(`Configuracion invalida de entorno:\n- ${issues}`)
 }
 
 module.exports = {

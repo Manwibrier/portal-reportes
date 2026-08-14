@@ -300,7 +300,7 @@ function Usuarios() {
             <div className="portal-card__heading">
               <h2 className="portal-card__title">Usuarios</h2>
               <p className="portal-card__subtitle">
-                Alta, edición y eliminación de usuarios autenticados por PocketBase.
+                Alta, edición y eliminación de usuarios autenticados en PostgreSQL.
               </p>
             </div>
           </div>

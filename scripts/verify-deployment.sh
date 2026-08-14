@@ -9,13 +9,18 @@ echo "== Estado de contenedores =="
 docker compose ps
 
 echo
-echo "== Health del backend a través de Nginx =="
+echo "== Liveness =="
 curl -fsS "${BASE_URL}/api/health"
 echo
 
 echo
-echo "== Página principal =="
+echo "== Readiness: PostgreSQL read-only + PocketBase =="
+curl -fsS "${BASE_URL}/api/health/ready"
+echo
+
+echo
+echo "== Pagina principal =="
 curl -fsSI "${BASE_URL}/" | sed -n '1,8p'
 
 echo
-echo "Verificación completada: ${BASE_URL}"
+echo "Verificacion completada: ${BASE_URL}"
