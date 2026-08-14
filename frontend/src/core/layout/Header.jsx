@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getCurrentUser } from '../services/auth'
 import { ROLE_LABELS, normalizeRoles } from '../routes/modulesRegistry'
@@ -116,17 +116,26 @@ function Header({ onMenuClick, menuOpen = false, onLogout, isLoggingOut = false 
           Última actualización visual: {fecha} {hora}
         </div>
 
-        <button
+        <div className="portal-header-actions">
+  <button
           type="button"
-          className="header__logout"
+          className="header__logout portal-header-exit-btn"
           onClick={onLogout}
           disabled={isLoggingOut}
         >
-          {isLoggingOut ? 'Saliendo...' : 'Salir'}
-        </button>
+    {isLoggingOut ? 'Saliendo...' : 'Salir'}
+  </button>
+
+  <span className="portal-header-credit">
+    Designed by Análisis de Datos
+  </span>
+</div>
       </div>
     </header>
   )
 }
 
 export default Header
+
+
+

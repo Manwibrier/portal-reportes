@@ -1,9 +1,11 @@
-// src/modules/dashboard/Dashboard.jsx
+﻿// src/modules/dashboard/Dashboard.jsx
 
+import { useMemo, useState } from 'react'
 import ModulePage from '../../components/ModulePage'
 import QuickAccessCard from '../../components/QuickAccessCard'
 import { getMenuModules } from '../../core/routes/modulesRegistry'
 import { getCurrentUser } from '../../core/services/auth'
+import { INTERNAL_NEWS, NEWS_SEGMENTS } from './data/internalNews'
 
 const GROUP_ORDER = [
   'gerencia',
@@ -193,6 +195,77 @@ function DashboardAccessGroup({ group }) {
   )
 }
 
+function InternalNewsPanel() {
+  const [selectedSegment, setSelectedSegment] = useState('general')
+
+  const visibleNews = useMemo(() => {
+    const filteredNews = INTERNAL_NEWS.filter(
+      (news) => news.segment === selectedSegment,
+    )
+
+    return filteredNews.length > 0 ? filteredNews : INTERNAL_NEWS.slice(0, 3)
+  }, [selectedSegment])
+
+  return (
+    <section className="portal-card dashboard-news-panel">
+      <header className="portal-card__header">
+        <div className="portal-card__header-row">
+          <div className="portal-card__heading">
+            <h2 className="portal-card__title">Noticias internas</h2>
+            <p className="portal-card__subtitle">
+              Información segmentada para seguimiento interno.
+            </p>
+          </div>
+
+          <div className="portal-card__actions">
+            <button type="button" className="portal-action-button">
+              Ver todas
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="portal-card__body">
+        <div className="dashboard-news-tabs" role="tablist">
+          {NEWS_SEGMENTS.map((segment) => (
+            <button
+              type="button"
+              key={segment.id}
+              className={[
+                'portal-action-button',
+                selectedSegment === segment.id
+                  ? 'portal-action-button--primary'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onClick={() => setSelectedSegment(segment.id)}
+            >
+              {segment.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="quick-grid dashboard-news-grid">
+          {visibleNews.slice(0, 3).map((news) => (
+            <article className="quick-card dashboard-news-card" key={news.id}>
+              <div className="quick-card__content">
+                <div className="dashboard-news-card__meta">
+                  <span>{news.date}</span>
+                  <span>{news.segmentLabel}</span>
+                </div>
+
+                <h3>{news.title}</h3>
+                <p>{news.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Dashboard() {
   const user = getCurrentUser()
   const visibleModules = getMenuModules(user?.role)
@@ -203,17 +276,21 @@ function Dashboard() {
       title={`Hola, ${user?.name || 'Usuario'}`}
       description="Selecciona un módulo para continuar."
     >
-      {dashboardGroups.length === 0 ? (
-        <div className="portal-feedback">
-          No hay módulos disponibles para este usuario.
-        </div>
-      ) : (
-        <div className="dashboard-segments-grid">
-          {dashboardGroups.map((group) => (
-            <DashboardAccessGroup key={group.id} group={group} />
-          ))}
-        </div>
-      )}
+      <div className="dashboard-page-stack">
+        {dashboardGroups.length === 0 ? (
+          <div className="portal-feedback">
+            No hay módulos disponibles para este usuario.
+          </div>
+        ) : (
+          <div className="dashboard-segments-grid">
+            {dashboardGroups.map((group) => (
+              <DashboardAccessGroup key={group.id} group={group} />
+            ))}
+          </div>
+        )}
+
+        <InternalNewsPanel />
+      </div>
     </ModulePage>
   )
 }

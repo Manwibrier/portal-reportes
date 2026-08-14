@@ -1,4 +1,4 @@
-/* src/styles/global.css */
+﻿/* src/styles/global.css */
 
 :root {
   --portal-font-family: 'Segoe UI', Inter, Roboto, Arial, sans-serif;
@@ -1511,7 +1511,7 @@ svg tspan,
 }
 
 /* =========================================================
-   Clientes · Cierre Mensual
+   Clientes Â· Cierre Mensual
    ========================================================= */
 
 .clientes-cierre-mensual-board,
@@ -3017,3 +3017,1545 @@ svg tspan,
     max-height: 360px;
   }
 }
+
+
+/* =========================================================
+   Dashboard Noticias Internas
+   Extensión conservadora: respeta tipografía, tamaños y tokens existentes
+   ========================================================= */
+
+.dashboard-page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--portal-grid-gap);
+}
+
+.dashboard-news-panel {
+  width: 100%;
+}
+
+.dashboard-news-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--portal-grid-gap);
+}
+
+.dashboard-news-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.dashboard-news-card {
+  align-items: flex-start;
+  min-height: auto;
+}
+
+.dashboard-news-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dashboard-news-card__meta span + span {
+  color: var(--norte-blue-deep);
+}
+
+@media (max-width: 760px) {
+  .dashboard-news-tabs {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+
+/* LOGIN_INSTITUCIONAL_FINAL_BEGIN */
+
+/* =========================================================
+   Login institucional final
+   Alineado con tokens, tipografía y lenguaje visual del portal
+   ========================================================= */
+
+.auth-shell--premium,
+.auth-shell--premium * {
+  font-family: var(--portal-font-family) !important;
+}
+
+.auth-shell--premium {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 3vw, 34px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 74% 16%, rgba(0, 194, 255, 0.10), transparent 27%),
+    radial-gradient(circle at 17% 78%, rgba(255, 107, 0, 0.07), transparent 24%),
+    linear-gradient(180deg, #f5f8fb 0%, var(--bg-body) 100%);
+}
+
+.auth-background--premium {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+}
+
+.auth-background__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 87, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 87, 184, 0.045) 1px, transparent 1px);
+  background-size: 52px 52px;
+  opacity: 0.7;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.35));
+}
+
+.auth-background__glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.auth-background__glow--one {
+  top: 8%;
+  left: -6%;
+  width: 300px;
+  height: 300px;
+  background: rgba(0, 87, 184, 0.10);
+}
+
+.auth-background__glow--two {
+  right: 3%;
+  top: 13%;
+  width: 260px;
+  height: 260px;
+  background: rgba(255, 107, 0, 0.09);
+}
+
+.auth-background__glow--three {
+  left: 28%;
+  bottom: 2%;
+  width: 340px;
+  height: 340px;
+  background: rgba(0, 194, 255, 0.07);
+}
+
+.auth-layout--premium {
+  width: min(100%, 1240px);
+  display: grid;
+  grid-template-columns: minmax(340px, 410px) minmax(0, 1fr);
+  gap: clamp(24px, 3vw, 34px);
+  align-items: stretch;
+}
+
+.auth-card--premium,
+.auth-hero-panel {
+  border: 1px solid var(--portal-card-border);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+}
+
+.auth-card--premium {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 620px;
+  padding: clamp(24px, 3vw, 34px);
+}
+
+.auth-card__header--logo-only {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.auth-card__eyebrow {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 87, 184, 0.09);
+  color: var(--norte-blue-deep);
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.auth-card__brand-logo,
+.auth-card__brand-logo--large {
+  width: clamp(150px, 12vw, 196px);
+  height: auto;
+  margin: 24px auto 8px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 24px rgba(0, 68, 129, 0.12));
+}
+
+.auth-card__title {
+  display: none !important;
+}
+
+.auth-card__intro,
+.auth-card__intro--center {
+  width: 100%;
+  margin: 12px 0 0;
+  color: var(--norte-blue-ink);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-align: center;
+  font-weight: var(--font-weight-regular);
+}
+
+.auth-alert {
+  margin: 20px 0 0;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 107, 0, 0.28);
+  border-radius: 16px;
+  background: rgba(255, 107, 0, 0.10);
+  color: #9a3d00;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-field span {
+  color: var(--norte-blue-ink);
+  font-size: 0.76rem;
+  line-height: 1.2;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.auth-field input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid #d4dfeb;
+  border-radius: 14px;
+  outline: none;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.2;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.auth-field input::placeholder {
+  color: #8fa3bd;
+}
+
+.auth-field input:hover {
+  background: var(--bg-card-muted);
+}
+
+.auth-field input:focus {
+  border-color: var(--norte-blue-soft);
+  box-shadow: var(--focus-ring);
+}
+
+.auth-submit {
+  min-height: 52px;
+  margin-top: 4px;
+  border: 1px solid var(--norte-blue);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #0b63d1 0%, var(--norte-blue) 100%);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  box-shadow: 0 12px 20px rgba(0, 87, 184, 0.18);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 22px rgba(0, 87, 184, 0.22);
+  filter: brightness(1.02);
+}
+
+.auth-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+  box-shadow: none;
+}
+
+.auth-hero-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  min-height: 620px;
+  padding: clamp(22px, 2.6vw, 32px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 76% 14%, rgba(0, 194, 255, 0.09), transparent 28%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.88));
+}
+
+.auth-hero-panel::before {
+  content: '';
+  position: absolute;
+  inset: auto -10% -18% auto;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 107, 0, 0.10), transparent 68%);
+  pointer-events: none;
+}
+
+.auth-hero-panel__header--clean {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.auth-hero-panel__title-clean {
+  margin: 0;
+  color: var(--norte-blue-deep);
+  font-size: clamp(1.42rem, 2vw, 1.9rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.auth-badge,
+.auth-hero-panel__header p,
+.auth-hero-kpis {
+  display: none !important;
+}
+
+.auth-hero-visual {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 350px;
+  border: 1px solid var(--portal-card-border);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.28) 34%, transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 248, 255, 0.92));
+  box-shadow: var(--shadow-md);
+}
+
+.auth-hero-visual::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  z-index: 0;
+  background-image: url('../../Imagenes/Nortico-login-background-epico.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 114% auto;
+  opacity: 0.36;
+  filter: saturate(0.95) contrast(0.95) brightness(1.18);
+  pointer-events: none;
+}
+
+.auth-hero-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.12) 34%, transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+  pointer-events: none;
+}
+
+.auth-hero-visual__backdrop,
+.auth-hero-visual__ring--one,
+.auth-hero-visual__ring--two,
+.auth-hero-visual__ring--three,
+.auth-hero-visual__halo,
+.auth-hero-visual__panel,
+.auth-hero-visual__panel--wide,
+.auth-hero-visual__panel--left,
+.auth-hero-visual__panel--right,
+.auth-hero-visual__caption {
+  display: none !important;
+}
+
+.auth-hero-visual__focus--nortico {
+  position: absolute;
+  left: 50%;
+  top: 53%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: min(100%, 480px);
+  height: min(100%, 330px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.auth-hero-visual__focus--nortico::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 0;
+  width: 220px;
+  height: 28px;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 61, 145, 0.20) 0%,
+    rgba(0, 61, 145, 0.08) 48%,
+    rgba(0, 61, 145, 0.02) 72%,
+    transparent 100%
+  );
+  filter: blur(8px);
+}
+
+.auth-hero-visual__mascot--holografico {
+  position: relative;
+  z-index: 3;
+  width: min(82%, 320px);
+  max-height: 310px;
+  object-fit: contain;
+  user-select: none;
+  filter:
+    drop-shadow(0 24px 30px rgba(0, 68, 129, 0.18))
+    drop-shadow(0 0 16px rgba(0, 194, 255, 0.16));
+  animation: authMascotFloat 5s ease-in-out infinite;
+}
+
+.auth-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.auth-quick-links--under-nortico {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.auth-quick-links--mobile {
+  display: none;
+  margin-top: 18px;
+}
+
+.auth-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--norte-blue-deep);
+  font-size: 0.86rem;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.auth-link-button:hover {
+  transform: translateY(-1px);
+  border-color: #bfd2e6;
+  background: var(--bg-card-muted);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-link-button--ghost {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.auth-hero-visual__footnote {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  color: var(--norte-blue-deep);
+  font-size: clamp(1.02rem, 1.45vw, 1.26rem);
+  line-height: 1.2;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+@keyframes authMascotFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .auth-layout--premium {
+    grid-template-columns: 1fr;
+    max-width: 720px;
+  }
+
+  .auth-card--premium,
+  .auth-hero-panel {
+    min-height: auto;
+  }
+
+  .auth-card--premium {
+    order: 1;
+  }
+
+  .auth-hero-panel {
+    order: 2;
+  }
+
+  .auth-hero-visual {
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 760px) {
+  .auth-shell--premium {
+    padding: 16px;
+  }
+
+  .auth-card--premium,
+  .auth-hero-panel {
+    border-radius: 24px;
+  }
+
+  .auth-card__brand-logo,
+  .auth-card__brand-logo--large {
+    width: clamp(136px, 42vw, 176px);
+    margin-top: 20px;
+  }
+
+  .auth-hero-panel {
+    padding: 20px;
+  }
+
+  .auth-hero-panel__title-clean {
+    font-size: clamp(1.24rem, 5vw, 1.58rem);
+  }
+
+  .auth-hero-visual {
+    min-height: 290px;
+    border-radius: 18px;
+  }
+
+  .auth-hero-visual::before {
+    background-size: 132% auto;
+    opacity: 0.30;
+  }
+
+  .auth-hero-visual__focus--nortico {
+    top: 54%;
+    width: 300px;
+    height: 245px;
+  }
+
+  .auth-hero-visual__mascot--holografico {
+    width: 220px;
+    max-height: 230px;
+  }
+
+  .auth-link-button {
+    min-width: 124px;
+  }
+
+  .auth-hero-visual__footnote {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .auth-hero-panel {
+    display: none;
+  }
+
+  .auth-layout--premium {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-quick-links--mobile {
+    display: flex;
+    justify-content: center;
+  }
+}
+
+/* LOGIN_INSTITUCIONAL_FINAL_END */
+
+
+
+
+
+/* LOGIN_PORTAL_STANDARD_V4_BEGIN */
+
+/* =========================================================
+   Login institucional estándar del portal
+   Diseño consolidado en global.css
+   ========================================================= */
+
+html,
+body,
+#root {
+  background: var(--bg-body, #eef4f9) !important;
+}
+
+body {
+  background: var(--bg-body, #eef4f9) !important;
+}
+
+.auth-shell--premium,
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 4vw, 42px);
+  background: var(--bg-body, #eef4f9) !important;
+  background-image: none !important;
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif) !important;
+  color: var(--text-primary, #0f1f38);
+}
+
+.auth-shell--premium *,
+.auth-shell--premium *::before,
+.auth-shell--premium *::after {
+  box-sizing: border-box;
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif) !important;
+}
+
+.auth-background--premium,
+.auth-background__grid,
+.auth-background__glow {
+  display: none !important;
+}
+
+.auth-layout--premium {
+  width: min(100%, 1180px);
+  display: grid;
+  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+  align-items: stretch;
+  gap: clamp(24px, 3vw, 36px);
+}
+
+.auth-card--premium,
+.auth-hero-panel {
+  border: 1px solid var(--border-color, #dbe4ee);
+  border-radius: 28px;
+  background: var(--bg-surface, #ffffff);
+  box-shadow: 0 20px 42px rgba(15, 31, 56, 0.08);
+}
+
+.auth-card--premium {
+  min-height: 610px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(28px, 3vw, 38px);
+}
+
+.auth-card__header--logo-first {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.auth-card__brand-logo--large {
+  width: clamp(168px, 14vw, 225px);
+  height: auto;
+  margin: 0 0 22px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 15px 26px rgba(0, 61, 145, 0.12))
+    drop-shadow(0 4px 10px rgba(255, 106, 26, 0.10));
+}
+
+.auth-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(0, 91, 187, 0.10);
+  color: var(--norte-blue-deep, #003d91);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.auth-card__title {
+  display: none !important;
+}
+
+.auth-card__intro--center,
+.auth-card__intro {
+  width: 100%;
+  margin: 18px 0 0;
+  text-align: center;
+  color: var(--text-secondary, #344767);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.auth-alert {
+  margin: 22px 0 0;
+  padding: 13px 15px;
+  border-radius: 15px;
+  background: rgba(255, 106, 26, 0.10);
+  color: #9a3d00;
+  border: 1px solid rgba(255, 106, 26, 0.28);
+  font-size: 0.92rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  margin-top: 22px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-field span {
+  color: var(--norte-blue-deep, #003d91);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+
+.auth-field input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color-strong, #c6d6e8);
+  background: #ffffff;
+  color: var(--text-primary, #0f1f38);
+  font-size: 0.95rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.auth-field input::placeholder {
+  color: #8297b4;
+}
+
+.auth-field input:hover {
+  border-color: rgba(0, 91, 187, 0.28);
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: rgba(0, 91, 187, 0.44);
+  box-shadow: 0 0 0 4px rgba(0, 91, 187, 0.10);
+}
+
+.auth-submit {
+  position: relative;
+  overflow: hidden;
+  min-height: 52px;
+  margin-top: 6px;
+  border: 1px solid var(--norte-blue-deep, #003d91);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      var(--norte-blue-deep, #003d91),
+      var(--norte-blue, #005bbb)
+    );
+  color: #ffffff;
+  font-size: 0.96rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(0, 91, 187, 0.22);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.auth-submit::before,
+.auth-link-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-125%);
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.12) 42%,
+      rgba(255, 255, 255, 0.28) 50%,
+      rgba(255, 255, 255, 0.12) 58%,
+      transparent 100%
+    );
+  transition: transform 420ms ease;
+  pointer-events: none;
+}
+
+.auth-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--norte-blue, #005bbb);
+  filter: brightness(1.05);
+  box-shadow:
+    0 17px 30px rgba(0, 91, 187, 0.25),
+    0 4px 10px rgba(0, 91, 187, 0.14);
+}
+
+.auth-submit:hover:not(:disabled)::before,
+.auth-link-button:hover::before {
+  transform: translateX(125%);
+}
+
+.auth-submit:active:not(:disabled),
+.auth-link-button:active {
+  transform: translateY(0);
+}
+
+.auth-submit:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.auth-hero-panel {
+  min-height: 610px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: clamp(26px, 3vw, 36px);
+}
+
+.auth-hero-panel__header--clean {
+  width: 100%;
+  text-align: center;
+}
+
+.auth-hero-panel__title-clean {
+  margin: 0;
+  color: var(--norte-blue-deep, #003d91);
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+}
+
+.auth-badge,
+.auth-hero-panel__header p,
+.auth-hero-kpis {
+  display: none !important;
+}
+
+.auth-hero-visual {
+  width: min(100%, 740px);
+  height: clamp(285px, 30vw, 360px);
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #dbe4ee);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.34)
+    ),
+    url('../../Imagenes/Nortico-login-background-epico.png') center center / cover no-repeat,
+    #f8fbff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 10px 22px rgba(15, 31, 56, 0.06);
+}
+
+.auth-hero-visual__backdrop,
+.auth-hero-visual__ring,
+.auth-hero-visual__halo,
+.auth-hero-visual__focus {
+  display: contents;
+}
+
+.auth-hero-visual__mascot--holografico {
+  width: clamp(210px, 24vw, 315px);
+  max-height: 92%;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  filter:
+    drop-shadow(0 22px 26px rgba(15, 31, 56, 0.16))
+    drop-shadow(0 0 16px rgba(0, 194, 255, 0.16));
+  animation: authMascotFloat 5s ease-in-out infinite;
+}
+
+@keyframes authMascotFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+.auth-direct-access {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 91, 187, 0.10);
+  border-radius: 18px;
+  background: rgba(248, 251, 255, 0.74);
+}
+
+.auth-direct-access__title {
+  color: var(--text-muted, #64748b);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.auth-direct-access__buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-link-button {
+  position: relative;
+  overflow: hidden;
+  min-width: 132px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 13px;
+  border: 1px solid rgba(0, 91, 187, 0.22);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 1),
+      rgba(242, 248, 255, 1)
+    );
+  color: var(--norte-blue-deep, #003d91);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 5px 12px rgba(15, 31, 56, 0.04);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.auth-link-button:hover {
+  transform: translateY(-2px);
+  border-color: var(--norte-blue, #005bbb);
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #eaf4ff
+    );
+  color: var(--norte-blue, #005bbb);
+  box-shadow:
+    0 12px 24px rgba(0, 91, 187, 0.13),
+    0 3px 8px rgba(0, 91, 187, 0.09);
+}
+
+.auth-link-button:focus-visible,
+.auth-submit:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(0, 91, 187, 0.14),
+    0 12px 24px rgba(0, 91, 187, 0.12);
+}
+
+.auth-hero-visual__footnote--title {
+  margin: 0;
+  color: var(--norte-blue-deep, #003d91);
+  font-size: clamp(1rem, 1.25vw, 1.18rem);
+  font-weight: 800;
+  letter-spacing: 0.065em;
+  text-align: center;
+}
+
+.auth-quick-links,
+.auth-quick-links--mobile,
+.auth-quick-links--under-nortico {
+  display: none !important;
+}
+
+@media (max-width: 1080px) {
+  .auth-layout--premium {
+    grid-template-columns: 1fr;
+    width: min(100%, 720px);
+  }
+
+  .auth-card--premium,
+  .auth-hero-panel {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .auth-shell--premium,
+  .auth-shell {
+    padding: 16px;
+  }
+
+  .auth-card--premium,
+  .auth-hero-panel {
+    border-radius: 24px;
+    padding: 24px;
+  }
+
+  .auth-card__brand-logo--large {
+    width: clamp(150px, 48vw, 200px);
+  }
+
+  .auth-hero-visual {
+    height: 300px;
+  }
+
+  .auth-direct-access {
+    width: 100%;
+  }
+
+  .auth-link-button {
+    min-width: 126px;
+  }
+}
+
+@media (max-width: 540px) {
+  .auth-hero-panel {
+    display: none;
+  }
+
+  .auth-layout--premium {
+    width: min(100%, 430px);
+  }
+
+  .auth-card--premium {
+    min-height: 560px;
+  }
+}
+
+/* LOGIN_PORTAL_STANDARD_V4_END */
+
+
+
+
+
+/* PORTAL_MAIN_REFINEMENT_BEGIN */
+
+/* =========================================================
+   Portal principal - refinamiento institucional
+   Nortico premium sidebar + botón Salir + crédito
+   ========================================================= */
+
+/* Header: agrupar salir + crédito */
+.portal-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.portal-header-actions .header__logout,
+.portal-header-exit-btn {
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--norte-blue-deep, #003d91);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      135deg,
+      var(--norte-blue-deep, #003d91),
+      var(--norte-blue, #005bbb)
+    );
+  color: #ffffff;
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(0, 91, 187, 0.18);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    border-color 160ms ease;
+}
+
+.portal-header-actions .header__logout:hover,
+.portal-header-exit-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--norte-blue, #005bbb);
+  filter: brightness(1.04);
+  box-shadow:
+    0 12px 22px rgba(0, 91, 187, 0.24),
+    0 3px 8px rgba(0, 91, 187, 0.10);
+}
+
+.portal-header-actions .header__logout:active,
+.portal-header-exit-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 7px 14px rgba(0, 91, 187, 0.16);
+}
+
+.portal-header-credit {
+  color: var(--text-muted, #64748b);
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: right;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* Nortico premium en el sidebar */
+.sidebar__mascot-wrap,
+.sidebar__mascot-container,
+.sidebar__footer,
+.sidebar__brand-footer {
+  position: relative;
+}
+
+.sidebar__mascot-wrap::before,
+.sidebar__mascot-container::before,
+.sidebar__footer::before,
+.sidebar__brand-footer::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: 112px;
+  height: 112px;
+  border-radius: 999px;
+  background:
+    radial-gradient(
+      circle,
+      rgba(111, 188, 255, 0.25) 0%,
+      rgba(111, 188, 255, 0.14) 42%,
+      rgba(111, 188, 255, 0) 74%
+    );
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar__mascot-wrap::after,
+.sidebar__mascot-container::after,
+.sidebar__footer::after,
+.sidebar__brand-footer::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 24px;
+  border-radius: 999px;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(130, 218, 255, 0.42) 0%,
+      rgba(130, 218, 255, 0.20) 48%,
+      rgba(130, 218, 255, 0) 78%
+    );
+  filter: blur(7px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar__mascot,
+.portal-sidebar-nortico-image {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 116px);
+  max-width: 116px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin-inline: auto;
+  filter:
+    drop-shadow(0 12px 20px rgba(5, 54, 126, 0.20))
+    drop-shadow(0 0 12px rgba(130, 218, 255, 0.18));
+  transform: translateY(0);
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.sidebar__mascot:hover,
+.portal-sidebar-nortico-image:hover {
+  transform: translateY(-2px);
+  filter:
+    drop-shadow(0 16px 26px rgba(5, 54, 126, 0.24))
+    drop-shadow(0 0 16px rgba(130, 218, 255, 0.24));
+}
+
+/* Asegurar que el botón Salir no herede estilo nativo del navegador */
+.header__logout {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .portal-header-actions {
+    align-items: flex-end;
+    min-width: auto;
+  }
+
+  .portal-header-credit {
+    max-width: 160px;
+    white-space: normal;
+  }
+
+  .sidebar__mascot,
+  .portal-sidebar-nortico-image {
+    max-width: 96px;
+  }
+}
+
+@media (max-width: 640px) {
+  .portal-header-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .portal-header-actions .header__logout,
+  .portal-header-exit-btn {
+    width: 100%;
+  }
+
+  .portal-header-credit {
+    max-width: none;
+    text-align: center;
+  }
+}
+
+/* PORTAL_MAIN_REFINEMENT_END */
+
+
+/* PORTAL_HEADER_POSITION_ONLY_BEGIN */
+
+/* =========================================================
+   Header: posicion solamente
+   No modifica textos, no modifica componentes, no toca modulos
+   ========================================================= */
+
+.header__actions {
+  display: grid !important;
+  grid-template-columns:
+    max-content
+    max-content
+    max-content
+    max-content
+    max-content;
+  grid-auto-rows: auto;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: center;
+  justify-content: end;
+  justify-items: end;
+}
+
+/* Todos los elementos reales del header quedan en la primera linea */
+.header__actions > * {
+  grid-row: 1;
+  min-width: 0;
+}
+
+/* Contenedor propio del Designed, debajo de Ultima actualizacion + Salir */
+.header__actions::after {
+  content: "Designed by An\00e1lisis de Datos";
+  grid-row: 2;
+  grid-column: 4 / 6;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 12px;
+  border: 1px solid rgba(201, 213, 230, 0.72);
+  border-radius: 999px;
+  background: rgba(248, 251, 255, 0.72);
+  color: var(--text-secondary, #344767);
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Oculta cualquier credito viejo que haya quedado inyectado antes */
+.portal-header-credit,
+.portal-header-credit-row {
+  display: none !important;
+}
+
+/* Mantener capsulas en una linea */
+.header__meta {
+  white-space: nowrap;
+}
+
+/* Boton Salir: mismo estandar, alineado dentro de la fila */
+.header__logout,
+.portal-header-exit-btn {
+  align-self: center;
+  justify-self: end;
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Hover limpio del boton Salir */
+.header__logout:hover,
+.portal-header-exit-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.header__logout:active,
+.portal-header-exit-btn:active {
+  transform: translateY(0);
+}
+
+/* Responsive: cuando no quepa, baja ordenado sin romper textos */
+@media (max-width: 1280px) {
+  .header__actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .header__actions::after {
+    flex-basis: 100%;
+    margin-left: auto;
+    width: fit-content;
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 760px) {
+  .header__actions {
+    justify-content: flex-start;
+  }
+
+  .header__actions::after {
+    margin-left: 0;
+    align-self: flex-start;
+  }
+}
+
+/* PORTAL_HEADER_POSITION_ONLY_END */
+
+
+/* SIDEBAR_NORTICO_DESIGNED_FIX_BEGIN */
+
+/* =========================================================
+   Sidebar Nortico + Designed by
+   Solo CSS. No modifica textos ni componentes.
+   ========================================================= */
+
+/* 1. Ocultar Designed by del header */
+.header__actions::after {
+  content: none !important;
+  display: none !important;
+}
+
+.portal-header-credit,
+.portal-header-credit-row {
+  display: none !important;
+}
+
+/* 2. Limpiar el contenedor del Nortico */
+.sidebar__mascot-panel {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  padding: 0 0 10px !important;
+  flex-shrink: 0;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  overflow: visible !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Eliminar brillos/sombras anteriores del contenedor */
+.sidebar__mascot-panel::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* 3. Designed by debajo del robot, en 2 lineas */
+.sidebar__mascot-panel::after {
+  content: "Designed by\A An\00e1lisis de Datos" !important;
+  display: block !important;
+  white-space: pre-line;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--portal-font-family, 'Segoe UI', Inter, Roboto, Arial, sans-serif);
+  font-size: 0.63rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  letter-spacing: 0.01em;
+  text-shadow: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 4. Nortico mas grande y sin sombra/borde/caja */
+.sidebar__mascot-image,
+.sidebar__mascot,
+.portal-sidebar-nortico-image {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 148px !important;
+  max-width: 148px !important;
+  height: auto !important;
+  margin: 0 auto !important;
+  object-fit: contain;
+  object-position: center bottom;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+  user-select: none;
+}
+
+/* 5. Evitar que el hover vuelva a poner sombra */
+.sidebar__mascot-panel:hover .sidebar__mascot-image,
+.sidebar__mascot-panel:hover .sidebar__mascot,
+.sidebar__mascot-panel:hover .portal-sidebar-nortico-image,
+.sidebar__mascot-image:hover,
+.sidebar__mascot:hover,
+.portal-sidebar-nortico-image:hover {
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+/* 6. Si hay wrappers internos con fondo/borde, limpiarlos */
+.sidebar__mascot-wrap,
+.sidebar__mascot-container,
+.sidebar__brand-footer,
+.sidebar__footer {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+/* 7. Ajuste para pantallas mas pequenas */
+@media (max-width: 900px) {
+  .sidebar__mascot-image,
+  .sidebar__mascot,
+  .portal-sidebar-nortico-image {
+    width: 132px !important;
+    max-width: 132px !important;
+  }
+
+  .sidebar__mascot-panel::after {
+    font-size: 0.6rem;
+  }
+}
+
+/* SIDEBAR_NORTICO_DESIGNED_FIX_END */

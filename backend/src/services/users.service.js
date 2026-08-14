@@ -1,5 +1,5 @@
-const { env } = require('../config/env')
-const { getAdminPocketBase } = require('../config/pocketbase')
+﻿const crypto = require('crypto')
+const { query } = require('../config/database')
 const { AppError } = require('../utils/app-error')
 const { ROLE_VALUES, normalizeRoles } = require('../utils/roles')
 
@@ -11,6 +11,12 @@ function normalizeEmail(value = '') {
   return normalizeText(value).toLowerCase()
 }
 
+function hashPassword(password = '') {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex')
+  return `scrypt$${salt}$${hash}`
+}
+
 function sanitizeUser(record = {}) {
   const roles = normalizeRoles(record.role || record.roles)
 
@@ -20,42 +26,13 @@ function sanitizeUser(record = {}) {
     email: record.email || '',
     role: roles,
     roles,
-    created: record.created,
-    updated: record.updated,
+    created: record.created_at || record.created,
+    updated: record.updated_at || record.updated,
   }
 }
 
-function normalizePocketBaseError(error, fallbackMessage) {
-  const status = Number(error?.status || error?.response?.code || 500)
-  const safeStatus = status >= 400 && status <= 599 ? status : 500
-
-  return new AppError(
-    error?.response?.message || error?.message || fallbackMessage,
-    safeStatus,
-    'POCKETBASE_USERS_ERROR',
-    error?.response?.data || undefined
-  )
-}
-
-function escapeFilterValue(value = '') {
-  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-}
-
-function buildSearchFilter(params = {}) {
-  const search = normalizeText(params.search)
-
-  if (!search) {
-    return ''
-  }
-
-  const safeSearch = escapeFilterValue(search)
-
-  return `(name ~ "${safeSearch}" || email ~ "${safeSearch}")`
-}
-
-function buildCreatePayload(payload = {}) {
-  const password = String(payload.password || '').trim()
-  const roles = normalizeRoles(payload.role || payload.roles)
+function assertValidRoles(value) {
+  const roles = normalizeRoles(value)
 
   if (roles.length === 0) {
     throw new AppError(
@@ -65,151 +42,242 @@ function buildCreatePayload(payload = {}) {
     )
   }
 
-  return {
-    name: normalizeText(payload.name),
-    email: normalizeEmail(payload.email),
-    emailVisibility: true,
-    verified: true,
-    role: roles,
-    password,
-    passwordConfirm: password,
-  }
-}
+  const invalidRoles = roles.filter((role) => !ROLE_VALUES.includes(role))
 
-function buildUpdatePayload(payload = {}) {
-  const updatePayload = {
-    name: normalizeText(payload.name),
-    email: normalizeEmail(payload.email),
+  if (invalidRoles.length > 0) {
+    throw new AppError(
+      `Permisos inválidos: ${invalidRoles.join(', ')}`,
+      400,
+      'USER_ROLE_INVALID'
+    )
   }
 
-  if (payload.role !== undefined || payload.roles !== undefined) {
-    const roles = normalizeRoles(payload.role || payload.roles)
-
-    if (roles.length === 0) {
-      throw new AppError(
-        'Debe seleccionar al menos un permiso para el usuario.',
-        400,
-        'USER_ROLE_REQUIRED'
-      )
-    }
-
-    updatePayload.role = roles
-  }
-
-  if (payload.password) {
-    updatePayload.password = String(payload.password)
-    updatePayload.passwordConfirm = String(payload.password)
-  }
-
-  return updatePayload
-}
-
-function applyLocalRoleFilter(users = [], role = '') {
-  const roles = normalizeRoles(role)
-
-  if (roles.length === 0) {
-    return users
-  }
-
-  return users.filter((user) => {
-    const userRoles = normalizeRoles(user.role || user.roles)
-    return roles.some((item) => userRoles.includes(item))
-  })
+  return roles
 }
 
 async function listUsers(params = {}) {
-  try {
-    const client = await getAdminPocketBase()
-    const page = Number(params.page || 1)
-    const perPage = Number(params.perPage || 25)
-    const filter = buildSearchFilter(params)
+  const page = Math.max(Number(params.page || 1), 1)
+  const perPage = Math.min(Math.max(Number(params.perPage || 25), 1), 100)
+  const offset = (page - 1) * perPage
+  const search = normalizeText(params.search)
+  const role = normalizeText(params.role)
 
-    const result = await client
-      .collection(env.POCKETBASE_USERS_COLLECTION)
-      .getList(page, perPage, {
-        sort: 'name,email',
-        filter: filter || undefined,
-      })
+  const where = ['is_active = TRUE']
+  const values = []
 
-    const items = applyLocalRoleFilter(
-      result.items.map(sanitizeUser),
-      params.role
-    )
+  if (search) {
+    values.push(`%${search.toLowerCase()}%`)
+    where.push(`(LOWER(name) LIKE $${values.length} OR LOWER(email) LIKE $${values.length})`)
+  }
 
-    return {
-      page: result.page,
-      perPage: result.perPage,
-      totalItems: items.length,
-      totalPages: Math.max(1, Math.ceil(items.length / perPage)),
-      items,
-    }
-  } catch (error) {
-    throw normalizePocketBaseError(error, 'No se pudo listar usuarios.')
+  if (role) {
+    values.push(role)
+    where.push(`$${values.length} = ANY(roles)`)
+  }
+
+  const whereSql = `WHERE ${where.join(' AND ')}`
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM portal_auth.users ${whereSql};`,
+    values
+  )
+
+  values.push(perPage)
+  const limitIndex = values.length
+  values.push(offset)
+  const offsetIndex = values.length
+
+  const result = await query(
+    `
+      SELECT id, name, email, roles, created_at, updated_at
+      FROM portal_auth.users
+      ${whereSql}
+      ORDER BY created_at DESC, name ASC
+      LIMIT $${limitIndex}
+      OFFSET $${offsetIndex};
+    `,
+    values
+  )
+
+  const totalItems = Number(countResult.rows[0]?.total || 0)
+
+  return {
+    page,
+    perPage,
+    totalItems,
+    totalPages: Math.max(Math.ceil(totalItems / perPage), 1),
+    items: result.rows.map(sanitizeUser),
   }
 }
 
 async function getUserById(id) {
-  try {
-    const client = await getAdminPocketBase()
-    const record = await client
-      .collection(env.POCKETBASE_USERS_COLLECTION)
-      .getOne(id)
+  const result = await query(
+    `
+      SELECT id, name, email, roles, created_at, updated_at
+      FROM portal_auth.users
+      WHERE id = $1
+        AND is_active = TRUE
+      LIMIT 1;
+    `,
+    [id]
+  )
 
-    return sanitizeUser(record)
-  } catch (error) {
-    throw normalizePocketBaseError(error, 'No se pudo obtener el usuario.')
+  const user = result.rows[0]
+
+  if (!user) {
+    throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
   }
+
+  return sanitizeUser(user)
 }
 
 async function createUser(payload = {}) {
-  try {
-    const client = await getAdminPocketBase()
-    const record = await client
-      .collection(env.POCKETBASE_USERS_COLLECTION)
-      .create(buildCreatePayload(payload))
+  const name = normalizeText(payload.name)
+  const email = normalizeEmail(payload.email)
+  const password = String(payload.password || '')
+  const roles = assertValidRoles(payload.role || payload.roles)
 
-    return sanitizeUser(record)
-  } catch (error) {
-    throw normalizePocketBaseError(error, 'No se pudo crear el usuario.')
-  }
-}
-
-async function updateUser(id, payload = {}) {
-  try {
-    const client = await getAdminPocketBase()
-    const record = await client
-      .collection(env.POCKETBASE_USERS_COLLECTION)
-      .update(id, buildUpdatePayload(payload))
-
-    return sanitizeUser(record)
-  } catch (error) {
-    throw normalizePocketBaseError(error, 'No se pudo actualizar el usuario.')
-  }
-}
-
-async function deleteUser(id, actor = {}) {
-  if (actor?.id && actor.id === id) {
+  if (!name || !email || password.length < 8) {
     throw new AppError(
-      'No puede eliminar su propio usuario autenticado.',
+      'Nombre, correo y clave válida son requeridos.',
       400,
-      'SELF_DELETE_NOT_ALLOWED'
+      'USER_INVALID_PAYLOAD'
     )
   }
 
   try {
-    const client = await getAdminPocketBase()
-    await client.collection(env.POCKETBASE_USERS_COLLECTION).delete(id)
+    const result = await query(
+      `
+        INSERT INTO portal_auth.users
+          (name, email, password_hash, roles, is_active)
+        VALUES
+          ($1, $2, $3, $4::text[], TRUE)
+        RETURNING id, name, email, roles, created_at, updated_at;
+      `,
+      [name, email, hashPassword(password), roles]
+    )
 
-    return {
-      ok: true,
-    }
+    return sanitizeUser(result.rows[0])
   } catch (error) {
-    throw normalizePocketBaseError(error, 'No se pudo eliminar el usuario.')
+    if (error.code === '23505') {
+      throw new AppError(
+        'Ya existe un usuario activo con ese correo.',
+        409,
+        'USER_EMAIL_EXISTS'
+      )
+    }
+
+    throw error
+  }
+}
+
+async function updateUser(id, payload = {}) {
+  const name = normalizeText(payload.name)
+  const email = normalizeEmail(payload.email)
+  const password = String(payload.password || '')
+  const roles = assertValidRoles(payload.role || payload.roles)
+
+  if (!name || !email) {
+    throw new AppError(
+      'Nombre y correo son requeridos.',
+      400,
+      'USER_INVALID_PAYLOAD'
+    )
+  }
+
+  const params = [id, name, email, roles]
+  let passwordSql = ''
+
+  if (password) {
+    if (password.length < 8) {
+      throw new AppError(
+        'La clave debe tener al menos 8 caracteres.',
+        400,
+        'USER_PASSWORD_INVALID'
+      )
+    }
+
+    params.push(hashPassword(password))
+    passwordSql = `, password_hash = $${params.length}`
+  }
+
+  try {
+    const result = await query(
+      `
+        UPDATE portal_auth.users
+        SET
+          name = $2,
+          email = $3,
+          roles = $4::text[],
+          updated_at = NOW()
+          ${passwordSql}
+        WHERE id = $1
+          AND is_active = TRUE
+        RETURNING id, name, email, roles, created_at, updated_at;
+      `,
+      params
+    )
+
+    if (!result.rows[0]) {
+      throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
+    }
+
+    return sanitizeUser(result.rows[0])
+  } catch (error) {
+    if (error.code === '23505') {
+      throw new AppError(
+        'Ya existe un usuario activo con ese correo.',
+        409,
+        'USER_EMAIL_EXISTS'
+      )
+    }
+
+    throw error
+  }
+}
+
+async function deleteUser(id, currentUser = {}) {
+  if (String(currentUser?.id || '') === String(id || '')) {
+    throw new AppError(
+      'No puede eliminar su propio usuario.',
+      400,
+      'USER_SELF_DELETE_NOT_ALLOWED'
+    )
+  }
+
+  const result = await query(
+    `
+      UPDATE portal_auth.users
+      SET
+        is_active = FALSE,
+        updated_at = NOW()
+      WHERE id = $1
+        AND is_active = TRUE
+      RETURNING id;
+    `,
+    [id]
+  )
+
+  if (!result.rows[0]) {
+    throw new AppError('Usuario no encontrado.', 404, 'USER_NOT_FOUND')
+  }
+
+  await query(
+    `
+      UPDATE portal_auth.sessions
+      SET revoked_at = NOW()
+      WHERE user_id = $1
+        AND revoked_at IS NULL;
+    `,
+    [id]
+  )
+
+  return {
+    ok: true,
   }
 }
 
 module.exports = {
-  ROLE_VALUES,
   createUser,
   deleteUser,
   getUserById,

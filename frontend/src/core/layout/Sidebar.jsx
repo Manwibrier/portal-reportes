@@ -1,9 +1,9 @@
-import { NavLink, useLocation } from 'react-router-dom'
+﻿import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { getMenuModules } from '../routes/modulesRegistry'
 import { getCurrentUser } from '../services/auth'
 import norteConectaLogo from '../../../Imagenes/NorteConectaLogo-1.png'
-import analistaDatosMascot from '../../../Imagenes/Analista_de_Datos_V2.png'
+import analistaDatosMascot from '../../../Imagenes/Nortico-login-premium.png'
 
 function Sidebar({ onNavigate }) {
   const user = getCurrentUser()
@@ -113,3 +113,4 @@ function Sidebar({ onNavigate }) {
 }
 
 export default Sidebar
+

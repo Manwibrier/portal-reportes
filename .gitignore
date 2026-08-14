@@ -1,44 +1,64 @@
+﻿
 # Dependencias
 node_modules/
-**/node_modules/
+frontend/node_modules/
+backend/node_modules/
 
-# Variables y credenciales
+# Builds / entregas
+frontend/dist/
+backend/dist/
+dist/
+entrega_ubuntu/
+*.zip
+
+# Variables reales
 .env
 .env.*
-!**/.env.example
-!frontend/.env.production
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 
-# Compilaciones
-frontend/dist/
-dist/
-build/
-coverage/
+# Permitir ejemplos
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
-# Releases y respaldos
-release/
-*.zip
-frontend.backup-*/
-portal_reportes_fix_*/
-
-# PocketBase
-pb_data/
-pb_migrations/
-
-# Repomix
-repomix-output*.xml
-
-# Logs y temporales
+# Logs / temporales
 *.log
-*.tmp
 npm-debug.log*
+.vscode/
 .DS_Store
 Thumbs.db
 
-# Editores
-.vscode/
-.idea/
-# Lockfile raíz accidental
+# Backups y temporales nuestros
+*.backup*
+*.backup_*
+*.bak
+backend_backup_pre_postgres_auth/
+backend_backup_pre_postgres_auth_*/
+release/
+repomix-output.xml
+backend/repomix-output.xml
+fix_encoding_safe.js
+fix_header_text_only.js
+backend/debug-auth-format.js
+backend/debug-auth-now.js
+backend/debug-auth-postgres.js
+~$*.docx
+
+# Documentos locales no necesarios para deploy
+*.pdf
+*.docx
+
+# Lock accidental en raiz
 /package-lock.json
 
-# Archivos temporales de Microsoft Office
-~$*
+# Scripts temporales sensibles
+backend/scripts/reset-password-*.js
+backend/scripts/fix-password-*.js
+backend/scripts/*password*.js
+backend/scripts/*debug*.js
+
+# Scripts locales temporales
+backend/scripts/
