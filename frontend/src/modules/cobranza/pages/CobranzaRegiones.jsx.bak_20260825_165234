@@ -1,0 +1,291 @@
+import React, { useState, useEffect } from 'react'
+import ModulePage from '../../../components/ModulePage'
+import { apiGet } from '../../../core/services/api.js'
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
+} from 'recharts'
+import {
+  CobranzaFilters,
+  CobranzaSectionHeader,
+  CobranzaStatus,
+  useCobranzaEndpoint,
+} from '../components/CobranzaShared'
+
+function fUSD(value) {
+  const val = Number(value) || 0
+  return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+}
+
+function fInt(value) {
+  const val = Number(value) || 0
+  return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)
+}
+
+function axisCompactUSD(value) {
+  const val = Number(value) || 0
+  if (Math.abs(val) >= 1e6) return '$' + (val / 1e6).toFixed(1) + 'M'
+  if (Math.abs(val) >= 1e3) return '$' + (val / 1e3).toFixed(0) + 'K'
+  return '$' + val.toFixed(0)
+}
+
+// FORMATO ESTRICTO DE MESES
+const SHORT_MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
+
+function formatShortMonth(period) {
+  if (!period) return ''
+  const parts = String(period).split('-')
+  if (parts.length < 2) return period
+  
+  const year = parts[0]
+  const monthIndex = parseInt(parts[1], 10) - 1
+  
+  if (monthIndex >= 0 && monthIndex <= 11) {
+    return `${SHORT_MONTHS[monthIndex]} ${year}`
+  }
+  return period
+}
+
+function generateLastMonths(basePeriod, count = 6) {
+  let year, month
+  if (basePeriod && /^\d{4}-\d{2}$/.test(basePeriod)) {
+    const parts = basePeriod.split('-').map(Number)
+    year = parts[0]
+    month = parts[1]
+  } else {
+    const d = new Date()
+    year = d.getFullYear()
+    month = d.getMonth() + 1
+  }
+  
+  const result = []
+  for (let i = 0; i < count; i++) {
+    result.push(`${year}-${String(month).padStart(2, '0')}`)
+    month -= 1
+    if (month === 0) {
+      month = 12
+      year -= 1
+    }
+  }
+  return result
+}
+
+export default function CobranzaRegiones() {
+  const {
+    applyFilters,
+    data,
+    error,
+    filters,
+    loading,
+    updateFilter,
+  } = useCobranzaEndpoint('regiones', { limit: 300 })
+
+  const [monthlyData, setMonthlyData] = useState([])
+  const [monthlyLoading, setMonthlyLoading] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    async function fetchMonthly() {
+      setMonthlyLoading(true)
+      const targetMonths = generateLastMonths(filters.periodo, 6)
+      const compData = []
+      
+      for (const mo of targetMonths) {
+        try {
+          const p = new URLSearchParams()
+          p.set('periodo', mo)
+          const res = await apiGet(`/api/cobranza/dashboard?${p.toString()}`)
+          compData.push({ mes: mo, kpis: res?.kpis || null })
+        } catch(e) {
+          compData.push({ mes: mo, kpis: null })
+        }
+      }
+      
+      if (isMounted) {
+        setMonthlyData(compData)
+        setMonthlyLoading(false)
+      }
+    }
+    fetchMonthly()
+    return () => { isMounted = false }
+  }, [filters.periodo])
+
+  const chartData = [...monthlyData].reverse().map(d => {
+    const hasData = d.kpis && typeof d.kpis.totalCargos !== 'undefined' && d.kpis.totalCargos > 0
+    return {
+      mes: formatShortMonth(d.mes),
+      facturado: hasData ? d.kpis.montoCargosUsd : 0,
+      cobrado: hasData ? d.kpis.montoCobradoUsd : 0,
+      avance: hasData ? d.kpis.pctCobrado : 0
+    }
+  })
+
+  const MonthlyTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ background: '#fff', border: '1px solid #dbe4ee', borderRadius: '12px', padding: '10px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', fontSize: '0.8rem', minWidth: '180px', zIndex: 1000, position: 'relative' }}>
+          <strong style={{ display: 'block', marginBottom: '8px', color: '#0f172a', borderBottom: '1px solid #eef2f6', paddingBottom: '4px' }}>{label}</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {payload.map(p => {
+              const isPct = p.dataKey === 'avance'
+              const valStr = isPct ? `${p.value.toFixed(1)}%` : fUSD(p.value)
+              return (
+                <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', color: p.color || p.fill }}>
+                  <span>{p.name}:</span>
+                  <strong>{valStr}</strong>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
+  return (
+    <ModulePage
+      title="Cobranza · Análisis Mensual"
+      description="Visión consolidada de movimientos de cobranza de los últimos 6 meses."
+    >
+      {/* 
+        BLOQUE DE ESTILO INYECTADO
+        Permite a la tabla usar anchos automáticos ajustados y mostrar todas las columnas
+      */}
+      <style>{`
+        #mensual-table-card { min-width: 0 !important; }
+        #mensual-table-card .portal-card__body { padding: 12px 16px !important; }
+        #mensual-table-card .portal-table-responsive { 
+          max-height: none !important; 
+          overflow-x: visible !important; 
+          padding-bottom: 0 !important; 
+        }
+        #mensual-table-card table { 
+          border-collapse: collapse !important; 
+          border-spacing: 0 !important; 
+          margin: 0 !important; 
+          width: 100% !important; 
+          table-layout: auto !important; 
+        }
+        #mensual-table-card table thead th {
+          padding: 8px 8px !important;
+          color: #64748b !important;
+          font-size: 0.72rem !important;
+          font-weight: 600 !important;
+          border-bottom: 1px solid #eef2f6 !important;
+          white-space: nowrap !important;
+          line-height: 1.2 !important;
+          text-align: right !important;
+        }
+        #mensual-table-card table tbody td {
+          padding: 8px 8px !important;
+          color: #0f172a !important;
+          font-size: 0.76rem !important;
+          font-weight: 400 !important; 
+          border-bottom: 1px solid #eef2f6 !important;
+          white-space: nowrap !important;
+          text-align: right !important;
+        }
+        /* La columna Mes alineada a la izquierda y en negrita */
+        #mensual-table-card table thead th:nth-child(1),
+        #mensual-table-card table tbody td:nth-child(1) {
+          text-align: left !important;
+          font-weight: 600 !important;
+        }
+      `}</style>
+
+      <div className="cobranza-shell">
+        <CobranzaFilters
+          data={data}
+          filters={filters}
+          loading={loading || monthlyLoading}
+          onChange={updateFilter}
+          onSubmit={applyFilters}
+          showSearch={false}
+        />
+
+        <CobranzaStatus loading={loading || monthlyLoading} error={error} />
+
+        {(!loading && !monthlyLoading) ? (
+          <>
+            <CobranzaSectionHeader
+              title="Resumen Histórico Consolidado"
+              subtitle="Análisis de tendencia mensual entre facturación y recaudo efectivo (Últimos 6 meses)."
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '32px' }}>
+              
+              {/* TABLA IZQUIERDA */}
+              <section className="portal-card" id="mensual-table-card">
+                <div className="portal-card__body">
+                  <div className="portal-table-responsive">
+                    <table className="portal-table">
+                      <thead>
+                        <tr>
+                          <th>Mes</th>
+                          <th>Clientes<br/>Totales</th>
+                          <th>Clientes<br/>Cobrados</th>
+                          <th>Mto<br/>Facturado</th>
+                          <th>Mto<br/>Cobrado</th>
+                          <th>%<br/>Avance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyData.map((row, index) => {
+                          const hasData = row.kpis && typeof row.kpis.totalCargos !== 'undefined' && row.kpis.totalCargos > 0
+                          return (
+                            <tr key={index}>
+                              <td>{formatShortMonth(row.mes)}</td>
+                              <td>{hasData ? fInt(row.kpis.totalCargos) : '0'}</td>
+                              <td>{hasData ? fInt(row.kpis.totalCobrado) : '0'}</td>
+                              <td>{hasData ? fUSD(row.kpis.montoCargosUsd) : '0,00'}</td>
+                              <td>{hasData ? fUSD(row.kpis.montoCobradoUsd) : '0,00'}</td>
+                              <td>
+                                {hasData ? (
+                                  <span style={{ color: row.kpis.pctCobrado >= 70 ? '#047E19' : '#f59e0b', fontWeight: 'bold' }}>
+                                    {row.kpis.pctCobrado.toFixed(1)}%
+                                  </span>
+                                ) : '0%'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              {/* GRÁFICA DERECHA */}
+              <section className="portal-card chart-card" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <div className="portal-card__body" style={{ flexGrow: 1, padding: '16px 10px', minHeight: '320px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="mes" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                      <YAxis yAxisId="left" tickFormatter={axisCompactUSD} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} width={40} />
+                      <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => v + '%'} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} width={30} />
+                      <Tooltip content={<MonthlyTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                      <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '10px' }} />
+                      <Bar yAxisId="left" dataKey="facturado" fill="#3b82f6" name="Monto Facturado" radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="left" dataKey="cobrado" fill="#047E19" name="Monto Cobrado" radius={[4, 4, 0, 0]} />
+                      <Line yAxisId="right" type="monotone" dataKey="avance" name="Avance Cobranza" stroke="#FF5C00" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+
+            </div>
+          </>
+        ) : null}
+      </div>
+    </ModulePage>
+  )
+}

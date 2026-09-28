@@ -1,0 +1,47 @@
+CREATE OR REPLACE VIEW powerbi.ingreso_consolidado
+ AS
+ WITH unificado AS (
+         SELECT dc.fecha::date AS fecha,
+            dc.zona,
+            dc.franquicia,
+            dc.moneda_base,
+            dc.moneda_secundaria,
+            dc.forma_pago,
+            sum(dc.monto_base) AS monto_base,
+            sum(dc.monto_secundario) AS monto_secundario
+           FROM ingreso_dcaja dc
+          WHERE dc.fecha::date >= '2026-01-01'::date AND dc.fecha::date <= '2026-12-31'::date
+          GROUP BY dc.fecha, dc.zona, dc.franquicia, dc.moneda_base, dc.moneda_secundaria, dc.forma_pago
+        UNION ALL
+         SELECT dp.fecha::date AS fecha,
+            dp.zona,
+            dp.franquicia,
+            dp.moneda_base,
+            dp.moneda_secundaria,
+            dp.forma_pago,
+            sum(dp.monto_base) AS monto_base,
+            sum(dp.monto_secundario) AS monto_secundario
+           FROM ingreso_dpago dp
+          WHERE dp.fecha::date >= '2026-01-01'::date AND dp.fecha::date <= '2026-12-31'::date
+          GROUP BY dp.fecha, dp.zona, dp.franquicia, dp.moneda_base, dp.moneda_secundaria, dp.forma_pago
+        )
+ SELECT unp.fecha,
+    unp.forma_pago,
+    unp.moneda_base,
+    sum(unp.monto_base) AS monto_base,
+    unp.moneda_secundaria,
+    sum(unp.monto_secundario) AS monto_secundario,
+    (( SELECT max(tasa_moneda_read.tasa) AS max
+           FROM administrativo.tasa_moneda_read(63, 51, unp.fecha) tasa_moneda_read(id_d_tasa_moneda, id_moneda, tasa, fecha_tasa, fecha_eliminacion, id_moneda_base)))::numeric AS tasa,
+    round(sum(unp.monto_base) / (( SELECT max(tasa_moneda_read.tasa) AS max
+           FROM administrativo.tasa_moneda_read(63, 51, unp.fecha) tasa_moneda_read(id_d_tasa_moneda, id_moneda, tasa, fecha_tasa, fecha_eliminacion, id_moneda_base)))::numeric, 2) AS monto_dolares,
+    unp.zona,
+    unp.franquicia
+   FROM unificado unp
+  GROUP BY unp.fecha, unp.moneda_base, unp.moneda_secundaria, unp.forma_pago, unp.zona, unp.franquicia;
+
+ALTER TABLE powerbi.ingreso_consolidado
+    OWNER TO postgres;
+
+GRANT ALL ON TABLE powerbi.ingreso_consolidado TO postgres;
+GRANT SELECT ON TABLE powerbi.ingreso_consolidado TO powerbi;

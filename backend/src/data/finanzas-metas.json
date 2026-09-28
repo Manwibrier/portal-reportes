@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "descripcion": "Metas mensuales de recaudacion congeladas. No dependen de cambios posteriores de tarifas en Totalnet.",
+  "metas": {
+    "2026-08": {
+      "periodo": "2026-08",
+      "metaFacturacionUsd": 3692330.83,
+      "estado": "CONGELADA",
+      "origen": "COBRANZA_GENERADO",
+      "descripcion": "Meta oficial de agosto 2026"
+    },
+    "2026-09": {
+      "periodo": "2026-09",
+      "metaFacturacionUsd": 3777944.17,
+      "estado": "CONGELADA",
+      "origen": "COBRANZA_GENERADO",
+      "descripcion": "Meta oficial de septiembre 2026"
+    }
+  }
+}
