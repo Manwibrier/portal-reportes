@@ -1,0 +1,1062 @@
+import React, { useState, useEffect, useMemo } from 'react'
+import ModulePage from '../../../components/ModulePage'
+import { apiGet } from '../../../core/services/api.js'
+import { RotateCcw } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts'
+
+function getDefaultPeriodValue() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+function formatPeriodDisplayLabel(period = '') {
+  const value = period || getDefaultPeriodValue()
+  const parts = String(value).split('-')
+  const year = Number(parts[0])
+  const month = Number(parts[1])
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return 'PERIODO'
+  return new Intl.DateTimeFormat('es-VE', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1)).toUpperCase()
+}
+
+function fUSD(value) {
+  const val = Number(value) || 0
+  return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+}
+
+function fInt(value) {
+  const val = Number(value) || 0
+  return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)
+}
+
+function axisCompactUSD(value) {
+  const val = Number(value) || 0
+  if (Math.abs(val) >= 1e6) return '$' + (val / 1e6).toFixed(1) + 'M'
+  if (Math.abs(val) >= 1e3) return '$' + (val / 1e3).toFixed(0) + 'K'
+  return '$' + val.toFixed(0)
+}
+
+export default function CobranzaAnalisisComparativo() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [periodo, setPeriodo] = useState(getDefaultPeriodValue())
+  const [draftPeriodo, setDraftPeriodo] = useState(getDefaultPeriodValue())
+  const periodLabel = useMemo(() => formatPeriodDisplayLabel(draftPeriodo), [draftPeriodo])
+  const [filters, setFilters] = useState({ zona: '', franquicia: '', servicio: '', estatus: '' })
+  const [rawData, setRawData] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+    async function fetchAll() {
+      setLoading(true)
+      setError('')
+      try {
+        const baseParams = new URLSearchParams()
+        baseParams.set('periodo', periodo)
+        baseParams.set('limit', '5000')
+        const res = await apiGet(`/api/cobranza/tablas?${baseParams.toString()}`)
+        if (!isMounted) return
+        setRawData(res?.rows || [])
+      } catch (err) {
+        if (isMounted) setError('Ocurrió un error general de conexión.')
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    fetchAll()
+    return () => { isMounted = false }
+  }, [periodo])
+
+  const filterOptions = useMemo(() => {
+    const zonas = new Set()
+    const franquicias = new Set()
+    const servicios = new Set()
+    const estatusList = new Set()
+    rawData.forEach(r => {
+      const z = String(r.zona || r.nombreZona || '').trim()
+      const f = String(r.nombreFranquicia || r.franquicia || '').trim()
+      const s = String(r.servicio || '').trim()
+      const e = String(r.estatusCliente || '').trim()
+      if (z && z !== 'SIN ZONA' && z !== 'undefined') zonas.add(z)
+      if (!filters.zona || z === filters.zona) {
+        if (f && f !== 'SIN FRANQUICIA' && f !== 'undefined') franquicias.add(f)
+      }
+      if (s && s !== 'SIN SERVICIO' && s !== 'undefined') servicios.add(s)
+      if (e && e !== 'SIN ESTATUS' && e !== 'undefined') estatusList.add(e)
+    })
+    return {
+      zonas: [...zonas].sort((a, b) => a.localeCompare(b)),
+      franquicias: [...franquicias].sort((a, b) => a.localeCompare(b)),
+      servicios: [...servicios].sort((a, b) => a.localeCompare(b)),
+      estatus: [...estatusList].sort((a, b) => a.localeCompare(b))
+    }
+  }, [rawData, filters.zona])
+
+  const filteredData = useMemo(() => {
+    return rawData.filter(r => {
+      if (filters.zona && String(r.zona || r.nombreZona).trim() !== filters.zona) return false
+      if (filters.franquicia && String(r.nombreFranquicia || r.franquicia).trim() !== filters.franquicia) return false
+      if (filters.servicio && String(r.servicio).trim() !== filters.servicio) return false
+      if (filters.estatus && String(r.estatusCliente).trim() !== filters.estatus) return false
+      return true
+    })
+  }, [rawData, filters])
+
+  const universoClientes = filteredData.length
+
+  const dailyGrid = useMemo(() => {
+    const grid = Array.from({ length: 31 }, (_, i) => ({
+      dia: i + 1,
+      v1_1_Cargos: 0, v1_2_Mto_Cargos: 0,
+      v3_1_Cobrado: 0, v3_2_Mto_Cobrado: 0, v3_3_Pagos_Parciales: 0,
+      Sumdescuento_usd: 0, v8_1_Desc_Total: 0,
+      v2_1_X_Cobrar: 0, v2_2_Mto_X_Cobrar: 0,
+      v4_1_Cargos_Post: 0, v4_2_Mto_Cargos_Post: 0,
+      v6_1_Cargos_Post_Cobrado: 0, v6_2_Mto_Cargos_Post_Cobrado: 0,
+      v5_1_Cargos_Post_X_Cobrar: 0, v5_2_Mto_Cargos_Post_X_Cobrar: 0,
+      v7_1_Recuperados: 0, v7_2_Mto_Recuperados: 0
+    }))
+    const getDay = (dateStr) => {
+      if (!dateStr) return null
+      const parts = String(dateStr).trim().split(/[- :T]/)
+      if (parts.length >= 3) {
+        const d = parseInt(parts[2].substring(0, 2), 10)
+        return (d >= 1 && d <= 31) ? d : 1
+      }
+      return null
+    }
+    filteredData.forEach(row => {
+      const tipo = String(row.tipoCargo || '').toUpperCase()
+      const estado = String(row.estadoPago || '').toUpperCase()
+      const mtoCargo = Number(row.montoCargoUsd) || 0
+      const mtoPago = Number(row.montoPagoUsd) || 0
+      const mtoDesc = Number(row.descuentoUsd ?? row.montoDescuentoUsd) || 0
+      const mtoRec = Number(row.montoRecuperadoUsd) || 0
+      const dCargo = getDay(row.fechaCargo) || 1
+      const dPago = getDay(row.fechaPago)
+      const dDesc = getDay(row.fechaDescuento)
+      if (tipo === 'GENERADO') {
+        grid[0].v1_1_Cargos += 1
+        grid[0].v1_2_Mto_Cargos += mtoCargo
+        if (mtoPago > 0 && dPago) {
+          grid[dPago - 1].v3_2_Mto_Cobrado += mtoPago
+          if (estado === 'PAGADO') grid[dPago - 1].v3_1_Cobrado += 1
+          else grid[dPago - 1].v3_3_Pagos_Parciales += 1
+        }
+        if (mtoDesc > 0 && dDesc) {
+          grid[dDesc - 1].Sumdescuento_usd += mtoDesc
+          if (estado !== 'PAGADO' && (mtoCargo - mtoDesc <= 0.01)) grid[dDesc - 1].v8_1_Desc_Total += 1
+        }
+      }
+      if (tipo === 'POSTERIOR') {
+        if (dCargo) {
+          grid[dCargo - 1].v4_1_Cargos_Post += 1
+          grid[dCargo - 1].v4_2_Mto_Cargos_Post += mtoCargo
+        }
+        if (mtoPago > 0 && dPago) {
+          grid[dPago - 1].v6_2_Mto_Cargos_Post_Cobrado += mtoPago
+          if (estado === 'PAGADO') grid[dPago - 1].v6_1_Cargos_Post_Cobrado += 1
+        }
+      }
+      if (tipo === 'RECUPERADO' && mtoPago > 0 && dPago) {
+        grid[dPago - 1].v7_1_Recuperados += 1
+        grid[dPago - 1].v7_2_Mto_Recuperados += (mtoRec > 0 ? mtoRec : mtoPago)
+      }
+    })
+    let runCntGen = grid[0].v1_1_Cargos
+    let runMtoGen = grid[0].v1_2_Mto_Cargos
+    let runCntPost = 0
+    let runMtoPost = 0
+    for (let i = 0; i < 31; i++) {
+      runCntGen -= grid[i].v3_1_Cobrado
+      runCntGen -= grid[i].v8_1_Desc_Total
+      runMtoGen -= grid[i].v3_2_Mto_Cobrado
+      runMtoGen -= grid[i].Sumdescuento_usd
+      grid[i].v2_1_X_Cobrar = Math.max(0, runCntGen)
+      grid[i].v2_2_Mto_X_Cobrar = Math.max(0, runMtoGen)
+      runCntPost += grid[i].v4_1_Cargos_Post
+      runMtoPost += grid[i].v4_2_Mto_Cargos_Post
+      runCntPost -= grid[i].v6_1_Cargos_Post_Cobrado
+      runMtoPost -= grid[i].v6_2_Mto_Cargos_Post_Cobrado
+      grid[i].v5_1_Cargos_Post_X_Cobrar = Math.max(0, runCntPost)
+      grid[i].v5_2_Mto_Cargos_Post_X_Cobrar = Math.max(0, runMtoPost)
+    }
+    return grid
+  }, [filteredData])
+
+  const { totals, analytics } = useMemo(() => {
+    const keys = [
+      'v1_1_Cargos', 'v1_2_Mto_Cargos', 'v3_1_Cobrado', 'v3_2_Mto_Cobrado', 'v3_3_Pagos_Parciales',
+      'Sumdescuento_usd', 'v8_1_Desc_Total', 'v2_1_X_Cobrar', 'v2_2_Mto_X_Cobrar',
+      'v4_1_Cargos_Post', 'v4_2_Mto_Cargos_Post', 'v6_1_Cargos_Post_Cobrado',
+      'v6_2_Mto_Cargos_Post_Cobrado', 'v5_1_Cargos_Post_X_Cobrar',
+      'v5_2_Mto_Cargos_Post_X_Cobrar', 'v7_1_Recuperados', 'v7_2_Mto_Recuperados'
+    ]
+    const t = {}
+    keys.forEach(k => { t[k] = 0 })
+    let runCobradoBase = 0
+    let runDescuentoBase = 0
+    const carteraBaseOriginal = dailyGrid[0]?.v1_2_Mto_Cargos || 0
+    const dailyChartData = []
+    dailyGrid.forEach(row => {
+      keys.forEach(k => {
+        if (['v2_1_X_Cobrar', 'v2_2_Mto_X_Cobrar', 'v5_1_Cargos_Post_X_Cobrar', 'v5_2_Mto_Cargos_Post_X_Cobrar'].includes(k)) {
+          if (row.dia === 31) t[k] = row[k]
+        } else t[k] += row[k]
+      })
+      runCobradoBase += row.v3_2_Mto_Cobrado
+      runDescuentoBase += row.Sumdescuento_usd
+      dailyChartData.push({
+        dia: row.dia.toString(),
+        cntCobradoBase: row.v3_1_Cobrado,
+        cntCobradoPost: row.v6_1_Cargos_Post_Cobrado,
+        cntRecuperado: row.v7_1_Recuperados,
+        cntCargosPost: row.v4_1_Cargos_Post,
+        cntPorCobrarBase: row.v2_1_X_Cobrar,
+        mtoPorCobrarBase: row.v2_2_Mto_X_Cobrar,
+        mtoCobradoBaseAcum: runCobradoBase,
+        mtoDescuentoBaseAcum: runDescuentoBase,
+        carteraBaseOriginal,
+        cobradoBase: row.v3_2_Mto_Cobrado,
+        descuentos: row.Sumdescuento_usd,
+        cobradoPost: row.v6_2_Mto_Cargos_Post_Cobrado,
+        recuperado: row.v7_2_Mto_Recuperados,
+        cargosPost: row.v4_2_Mto_Cargos_Post,
+      })
+    })
+    const donutData = [
+      { name: 'Cobrado', value: t.v3_2_Mto_Cobrado, fill: '#10b981' },
+      { name: 'Descuentos', value: t.Sumdescuento_usd, fill: '#f59e0b' },
+      { name: 'Pendiente', value: t.v2_2_Mto_X_Cobrar, fill: '#ef4444' },
+    ]
+    return { totals: t, analytics: { daily: dailyChartData, donut: donutData } }
+  }, [dailyGrid])
+
+  const handleReset = () => setFilters({ zona: '', franquicia: '', servicio: '', estatus: '' })
+
+  const tdStyle = { padding: '2px 8px', textAlign: 'right', fontWeight: 400, fontSize: '0.76rem', color: '#0f172a', whiteSpace: 'nowrap', borderBottom: '1px solid #eef2f6' }
+  const thStyle = { padding: '4px 8px', textAlign: 'right', color: '#64748b', fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid #eef2f6' }
+  const tfStyle = { padding: '6px 8px', textAlign: 'right', color: '#0f172a', fontSize: '0.76rem', fontWeight: 600, whiteSpace: 'nowrap', borderTop: '1px solid #dbe4ee' }
+
+  const DailyTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+
+      const pendiente =
+        Number(data.mtoPorCobrarBase) || 0
+
+      const cobrado =
+        Number(data.mtoCobradoBaseAcum) || 0
+
+      const descuentos =
+        Number(data.mtoDescuentoBaseAcum) || 0
+
+      const carteraBase =
+        Number(data.carteraBaseOriginal) || 0
+
+      const conciliado =
+        pendiente +
+        cobrado +
+        descuentos
+
+      const diferencia =
+        Math.abs(carteraBase - conciliado)
+
+      return (
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #dbe4ee',
+            borderRadius: '12px',
+            padding: '12px',
+            boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+            fontSize: '0.8rem',
+            minWidth: '260px',
+          }}
+        >
+          <strong
+            style={{
+              display: 'block',
+              marginBottom: '8px',
+              color: '#0f172a',
+              borderBottom: '1px solid #eef2f6',
+              paddingBottom: '5px',
+            }}
+          >
+            Día {label}
+          </strong>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '16px',
+              marginBottom: '12px',
+              color: '#003d91',
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              Cartera Base Original
+            </span>
+
+            <strong>
+              US$ {fUSD(carteraBase)}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '9px',
+            }}
+          >
+            <div
+              style={{
+                color: '#003d91',
+              }}
+            >
+              <strong>
+                Pendiente Base
+              </strong>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  marginTop: '2px',
+                }}
+              >
+                <span>
+                  Cantidad:
+                </span>
+
+                <strong>
+                  {fInt(data.cntPorCobrarBase)}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                }}
+              >
+                <span>
+                  Monto:
+                </span>
+
+                <strong>
+                  US$ {fUSD(pendiente)}
+                </strong>
+              </div>
+            </div>
+
+            <div
+              style={{
+                color: '#ff5c00',
+              }}
+            >
+              <strong>
+                Cobrado Base (Acum)
+              </strong>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  marginTop: '2px',
+                }}
+              >
+                <span>
+                  Monto:
+                </span>
+
+                <strong>
+                  US$ {fUSD(cobrado)}
+                </strong>
+              </div>
+            </div>
+
+            <div
+              style={{
+                color: '#b45309',
+              }}
+            >
+              <strong>
+                Descuentos Base (Acum)
+              </strong>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  marginTop: '2px',
+                }}
+              >
+                <span>
+                  Monto:
+                </span>
+
+                <strong>
+                  US$ {fUSD(descuentos)}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: '12px',
+              paddingTop: '8px',
+              borderTop: '1px dashed #dbe4ee',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '16px',
+                color: '#475569',
+              }}
+            >
+              <span>
+                Pendiente + Cobrado + Descuentos
+              </span>
+
+              <strong>
+                US$ {fUSD(conciliado)}
+              </strong>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '16px',
+                marginTop: '5px',
+                color:
+                  diferencia <= 0.02
+                    ? '#166534'
+                    : '#b45309',
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>
+                Conciliación
+              </span>
+
+              <strong>
+                {
+                  diferencia <= 0.02
+                    ? 'OK'
+                    : 'Dif. US$ ' + fUSD(diferencia)
+                }
+              </strong>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  const DonutTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div style={{ background: '#fff', border: '1px solid #dbe4ee', borderRadius: '12px', padding: '10px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', fontSize: '0.8rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', color: data.fill }}>
+            <span>{data.name}:</span>
+            <strong>US$ {fUSD(data.value)}</strong>
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
+  const baseCargosCnt = totals.v1_1_Cargos || 1
+  const baseCobradoPct = ((totals.v3_1_Cobrado / baseCargosCnt) * 100).toFixed(1)
+  const baseDescuentoPct = ((totals.v8_1_Desc_Total / baseCargosCnt) * 100).toFixed(1)
+  const basePendientePct = ((totals.v2_1_X_Cobrar / baseCargosCnt) * 100).toFixed(1)
+
+  const postCargosCnt = totals.v4_1_Cargos_Post || 1
+  const postCobradoPct = ((totals.v6_1_Cargos_Post_Cobrado / postCargosCnt) * 100).toFixed(1)
+  const postPendientePct = ((totals.v5_1_Cargos_Post_X_Cobrar / postCargosCnt) * 100).toFixed(1)
+
+  const consolidadoCargosCnt = totals.v1_1_Cargos + totals.v4_1_Cargos_Post
+  const consolidadoCargosMto = totals.v1_2_Mto_Cargos + totals.v4_2_Mto_Cargos_Post
+  const consolidadoCobranzaCnt = totals.v3_1_Cobrado + totals.v6_1_Cargos_Post_Cobrado + totals.v7_1_Recuperados
+  const consolidadoCobranzaMto = totals.v3_2_Mto_Cobrado + totals.v6_2_Mto_Cargos_Post_Cobrado + totals.v7_2_Mto_Recuperados
+  const consolidadoDescCnt = totals.v8_1_Desc_Total
+  const consolidadoDescMto = totals.Sumdescuento_usd
+  const consolidadoPendienteCnt = totals.v2_1_X_Cobrar + totals.v5_1_Cargos_Post_X_Cobrar
+  const consolidadoPendienteMto = totals.v2_2_Mto_X_Cobrar + totals.v5_2_Mto_Cargos_Post_X_Cobrar
+
+  const baseConsolidado = consolidadoCargosCnt || 1
+
+  return (
+    <ModulePage
+      title="Cobranza · Análisis Diario"
+      description="Visión consolidada de la historia diaria separando la Cartera Base de la Gestión Extra."
+    >
+      <style>{`
+        #analisis-diario-card { overflow: visible !important; }
+        #analisis-diario-card .portal-table-responsive { max-height: none !important; overflow: visible !important; padding-bottom: 0 !important; }
+        #analisis-diario-card table { border-collapse: collapse !important; border-spacing: 0 !important; }
+        #analisis-diario-card table thead th, #analisis-diario-card table tbody td, #analisis-diario-card table tfoot td { text-align: right !important; }
+        #analisis-diario-card table tbody td { font-weight: 400 !important; }
+        #analisis-diario-card table tbody td.col-dia, #analisis-diario-card table tfoot td.col-dia, #analisis-diario-card table thead th.col-dia {
+          text-align: center !important; position: sticky !important; left: 0 !important; border-right: 1px solid #eef2f6 !important;
+        }
+        #analisis-diario-card table tbody td.col-dia { font-weight: 600 !important; color: #0057b8 !important; background: #f8fbff !important; z-index: 10 !important; }
+        #analisis-diario-card table thead th.col-dia { color: #64748b !important; background: #ffffff !important; z-index: 15 !important; }
+        #analisis-diario-card table tfoot td.col-dia { z-index: 15 !important; border-right: 1px solid #dbe4ee !important; text-align: left !important; background: #f8fbff !important; }
+      `}</style>
+
+      <div className="cobranza-franquicias-page">
+        <div className="cobranza-franquicias-page__header">
+          <div className="cobranza-franquicias-page__period-slot">
+            <form className="cobranza-franquicias-period-dashboard" onSubmit={(event) => { event.preventDefault(); if (draftPeriodo) setPeriodo(draftPeriodo) }}>
+              <div className="cobranza-franquicias-period-dashboard__head">
+                <span>PERIODO</span>
+                <strong>{periodLabel}</strong>
+              </div>
+              <div className="cobranza-franquicias-period-dashboard__body">
+                <label className="cobranza-franquicias-period-dashboard__input-wrap">
+                  <span className="cobranza-franquicias-period-dashboard__calendar" aria-hidden="true">📅</span>
+                  <input type="month" name="periodo" value={draftPeriodo} onChange={(event) => setDraftPeriodo(event.target.value)} disabled={loading} />
+                </label>
+                <button type="submit" className="portal-filter-action portal-filter-action--primary cobranza-franquicias-period-dashboard__button" disabled={loading || !draftPeriodo}>
+                  {loading ? 'Cargando...' : 'Cargar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <section className="portal-card">
+          <header className="portal-card__header">
+            <div className="portal-card__heading">
+              <h3 className="portal-card__title">Filtros de Segmentación</h3>
+              <p className="portal-card__subtitle">Segmenta el análisis por zona, franquicia, servicio y estatus.</p>
+            </div>
+          </header>
+          <div className="portal-card__body" style={{ paddingTop: '14px' }}>
+            <div className="cobranza-analisis-filter-grid">
+              <div className="portal-filter-panel portal-filter-panel--summary">
+                <span className="portal-filter-panel__title">UNIVERSO DE CLIENTES</span>
+                <strong className="clientes-cierre-filter-total" style={{ color: '#003d91', fontWeight: 'bold' }}>{fInt(universoClientes)}</strong>
+              </div>
+              <div className="portal-filter-panel portal-filter-panel--select">
+                <span className="portal-filter-panel__title">REGIÓN / ZONA</span>
+                <div className="portal-filter-select__control">
+                  <select className="portal-filter-select__input" value={filters.zona} onChange={(e) => setFilters(prev => ({ ...prev, zona: e.target.value, franquicia: '' }))} disabled={loading}>
+                    <option value="">TODAS LAS ZONAS</option>
+                    {filterOptions.zonas.map(z => <option key={z} value={z}>{z}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="portal-filter-panel portal-filter-panel--select">
+                <span className="portal-filter-panel__title">FRANQUICIA</span>
+                <div className="portal-filter-select__control">
+                  <select className="portal-filter-select__input" value={filters.franquicia} onChange={(e) => setFilters(prev => ({ ...prev, franquicia: e.target.value }))} disabled={loading}>
+                    <option value="">TODAS LAS FRANQUICIAS</option>
+                    {filterOptions.franquicias.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="portal-filter-panel portal-filter-panel--select">
+                <span className="portal-filter-panel__title">SERVICIO</span>
+                <div className="portal-filter-select__control">
+                  <select className="portal-filter-select__input" value={filters.servicio} onChange={(e) => setFilters(prev => ({ ...prev, servicio: e.target.value }))} disabled={loading}>
+                    <option value="">TODOS</option>
+                    {filterOptions.servicios.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="portal-filter-panel portal-filter-panel--select">
+                <span className="portal-filter-panel__title">ESTATUS</span>
+                <div className="portal-filter-select__control">
+                  <select className="portal-filter-select__input" value={filters.estatus} onChange={(e) => setFilters(prev => ({ ...prev, estatus: e.target.value }))} disabled={loading}>
+                    <option value="">TODOS</option>
+                    {filterOptions.estatus.map(e => <option key={e} value={e}>{e}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="cobranza-analisis-filter-actions">
+                <button type="button" className="portal-filter-action portal-filter-action--primary" onClick={handleReset} disabled={loading || (!filters.zona && !filters.franquicia && !filters.servicio && !filters.estatus)} style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <RotateCcw size={16} style={{ marginRight: '6px' }}/>
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {error && <div className="portal-feedback portal-feedback--error">{error}</div>}
+        {loading && !error && <div className="portal-feedback portal-feedback--loading">Cargando análisis y procesando matriz diaria...</div>}
+
+        {!loading && !error && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', marginBottom: '32px' }}>
+            
+            {/* =========================================
+                SECCIÓN 1: CARTERA BASE 
+            ========================================= */}
+            <div>
+              <h2 style={{ fontSize: '1.2rem', color: '#0f172a', marginBottom: '16px', paddingLeft: '6px', borderLeft: '4px solid #0057b8' }}>Cartera Base (Meta del Día 1)</h2>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#0057b8' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Cargos Base (Meta)</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v1_1_Cargos)} <span style={{ color: '#0057b8', fontWeight: 600 }}>(100%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#0057b8' }}>US$ {fUSD(totals.v1_2_Mto_Cargos)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#10b981' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Cobranza Efectiva</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v3_1_Cobrado)} <span style={{ color: '#10b981', fontWeight: 600 }}>({baseCobradoPct}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#10b981' }}>US$ {fUSD(totals.v3_2_Mto_Cobrado)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#f59e0b' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Descuentos</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v8_1_Desc_Total)} <span style={{ color: '#f59e0b', fontWeight: 600 }}>({baseDescuentoPct}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#f59e0b' }}>US$ {fUSD(totals.Sumdescuento_usd)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#ef4444' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Saldo Pendiente</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v2_1_X_Cobrar)} <span style={{ color: '#ef4444', fontWeight: 600 }}>({basePendientePct}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#ef4444' }}>US$ {fUSD(totals.v2_2_Mto_X_Cobrar)}</strong>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                <section className="portal-card chart-card">
+                  <header className="portal-card__header">
+                    <div className="portal-card__heading">
+                      <h3 className="portal-card__title">Curva de Cobranza (Cartera Base)</h3>
+                      <p className="portal-card__subtitle">Cartera Base = Pendiente + Cobrado acumulado + Descuentos acumulados.</p>
+                    </div>
+                  </header>
+                  <div className="portal-card__body" style={{ height: '320px', padding: '16px 20px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={analytics.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} interval={0} />
+                        <YAxis tickFormatter={axisCompactUSD} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+                        <Tooltip content={<DailyTooltip />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                        <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                        <Area
+                          type="monotone"
+                          dataKey="mtoPorCobrarBase"
+                          name="Pendiente (Base)"
+                          fill="#003d91"
+                          stroke="#003d91"
+                          fillOpacity={0.12}
+                        />
+
+                        <Line
+                          type="monotone"
+                          dataKey="mtoCobradoBaseAcum"
+                          name="Cobrado Base (Acum)"
+                          stroke="#ff5c00"
+                          strokeWidth={3}
+                          dot={false}
+                          activeDot={{ r: 6 }}
+                        />
+
+                        <Line
+                          type="monotone"
+                          dataKey="mtoDescuentoBaseAcum"
+                          name="Descuentos Base (Acum)"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                          dot={false}
+                          activeDot={{ r: 5 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+
+                <section className="portal-card chart-card">
+                  <header className="portal-card__header">
+                    <div className="portal-card__heading">
+                      <h3 className="portal-card__title">Eficiencia (Cartera Base)</h3>
+                      <p className="portal-card__subtitle">Distribución final de la meta inicial.</p>
+                    </div>
+                  </header>
+                  <div className="portal-card__body" style={{ height: '320px', padding: '16px 20px', display: 'flex', alignItems: 'center' }}>
+                    <ResponsiveContainer width="50%" height="100%">
+                      <PieChart>
+                        <Pie data={analytics.donut} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={2} dataKey="value" stroke="none">
+                          {analytics.donut.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<DonutTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: '12px', paddingLeft: '20px' }}>
+                      {analytics.donut.map(item => {
+                        const totalBasis = totals.v1_2_Mto_Cargos
+                        const pct = totalBasis > 0 ? ((item.value / totalBasis) * 100).toFixed(1) : 0
+                        return (
+                          <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ width: '12px', height: '12px', borderRadius: '4px', background: item.fill, flexShrink: 0 }}></span>
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                              <strong style={{ fontSize: '0.86rem', color: '#0f172a', lineHeight: 1.1 }}>{item.name} ({pct}%)</strong>
+                              <span style={{ fontSize: '0.76rem', color: '#64748b' }}>US$ {fUSD(item.value)}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* =========================================
+                SECCIÓN 2: GESTIÓN EXTRA 
+            ========================================= */}
+            <div>
+              <h2 style={{ fontSize: '1.2rem', color: '#0f172a', marginBottom: '16px', paddingLeft: '6px', borderLeft: '4px solid #6366f1' }}>Gestión Extra (Posterior y Recuperación)</h2>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#0057b8' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Cargos Posteriores</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v4_1_Cargos_Post)} <span style={{ color: '#0057b8', fontWeight: 600 }}>(100%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#0057b8' }}>US$ {fUSD(totals.v4_2_Mto_Cargos_Post)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#10b981' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Post. Cobrado</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v6_1_Cargos_Post_Cobrado)} <span style={{ color: '#10b981', fontWeight: 600 }}>({postCobradoPct}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#10b981' }}>US$ {fUSD(totals.v6_2_Mto_Cargos_Post_Cobrado)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#ef4444' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Post. Pendiente</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v5_1_Cargos_Post_X_Cobrar)} <span style={{ color: '#ef4444', fontWeight: 600 }}>({postPendientePct}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#ef4444' }}>US$ {fUSD(totals.v5_2_Mto_Cargos_Post_X_Cobrar)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#10b981' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Recuperados</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(totals.v7_1_Recuperados)} <span style={{ color: '#10b981', fontWeight: 600 }}>(-)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#10b981' }}>US$ {fUSD(totals.v7_2_Mto_Recuperados)}</strong>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                <section className="portal-card chart-card">
+                  <header className="portal-card__header">
+                    <div className="portal-card__heading">
+                      <h3 className="portal-card__title">Resumen Posterior</h3>
+                      <p className="portal-card__subtitle">Comportamiento diario de la facturación extra.</p>
+                    </div>
+                  </header>
+                  <div className="portal-card__body" style={{ height: '320px', padding: '16px 20px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analytics.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} interval={0} />
+                        <YAxis tickFormatter={axisCompactUSD} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+                        <Tooltip content={<DailyTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                        <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                        <Bar dataKey="cargosPost" fill="#0057b8" name="Cargos Posteriores" radius={[4, 4, 0, 0]} minPointSize={3} />
+                        <Bar dataKey="cobradoPost" fill="#10b981" name="Post. Cobrado" radius={[4, 4, 0, 0]} minPointSize={3} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+
+                <section className="portal-card chart-card">
+                  <header className="portal-card__header">
+                    <div className="portal-card__heading">
+                      <h3 className="portal-card__title">Resumen Recuperación</h3>
+                      <p className="portal-card__subtitle">Cobranza diaria sobre deudas de meses pasados.</p>
+                    </div>
+                  </header>
+                  <div className="portal-card__body" style={{ height: '320px', padding: '16px 20px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analytics.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} interval={0} />
+                        <YAxis tickFormatter={axisCompactUSD} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+                        <Tooltip content={<DailyTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                        <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                        <Bar dataKey="recuperado" fill="#10b981" name="Recuperados" radius={[4, 4, 0, 0]} minPointSize={3} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* =========================================
+                SECCIÓN 3: CONSOLIDADO FINAL 
+            ========================================= */}
+            <div>
+              <h2 style={{ fontSize: '1.2rem', color: '#0f172a', marginBottom: '16px', paddingLeft: '6px', borderLeft: '4px solid #10b981' }}>Consolidado (Base + Extra)</h2>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#0057b8' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Total Cargos</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(consolidadoCargosCnt)} <span style={{ color: '#0057b8', fontWeight: 600 }}>(100%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#0057b8' }}>US$ {fUSD(consolidadoCargosMto)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#10b981' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Total Cobranza</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(consolidadoCobranzaCnt)} <span style={{ color: '#10b981', fontWeight: 600 }}>({((consolidadoCobranzaCnt / baseConsolidado) * 100).toFixed(1)}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#10b981' }}>US$ {fUSD(consolidadoCobranzaMto)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#f59e0b' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Total Descuentos</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(consolidadoDescCnt)} <span style={{ color: '#f59e0b', fontWeight: 600 }}>({((consolidadoDescCnt / baseConsolidado) * 100).toFixed(1)}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#f59e0b' }}>US$ {fUSD(consolidadoDescMto)}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="kpi-card" style={{ padding: '16px 18px', borderLeftColor: '#ef4444' }}>
+                  <span className="kpi-card__title" style={{ marginBottom: '12px', display: 'block', color: '#0f172a' }}>Total Pendientes</span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cantidad - %</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{fInt(consolidadoPendienteCnt)} <span style={{ color: '#ef4444', fontWeight: 600 }}>({((consolidadoPendienteCnt / baseConsolidado) * 100).toFixed(1)}%)</span></strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Monto</span>
+                      <strong className="kpi-card__value" style={{ fontSize: '1.15rem', color: '#ef4444' }}>US$ {fUSD(consolidadoPendienteMto)}</strong>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+                <section className="portal-card chart-card">
+                  <header className="portal-card__header">
+                    <div className="portal-card__heading">
+                      <h3 className="portal-card__title">Flujo de Ingresos y Ajustes Diario</h3>
+                      <p className="portal-card__subtitle">Distribución apilada de lo recaudado y descontado en todo el mes.</p>
+                    </div>
+                  </header>
+                  <div className="portal-card__body" style={{ height: '360px', padding: '16px 20px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analytics.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="dia" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} interval={0} />
+                        <YAxis tickFormatter={axisCompactUSD} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+                        <Tooltip content={<DailyTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                        <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                        <Bar dataKey="cobradoBase" stackId="a" fill="#10b981" name="Cobrado Base" radius={[0, 0, 4, 4]} minPointSize={3} />
+                        <Bar dataKey="descuentos" stackId="a" fill="#f59e0b" name="Descuentos" minPointSize={3} />
+                        <Bar dataKey="cobradoPost" stackId="a" fill="#6366f1" name="Post. Cobrado" minPointSize={3} />
+                        <Bar dataKey="recuperado" stackId="a" fill="#0ea5e9" name="Recuperados" radius={[4, 4, 0, 0]} minPointSize={3} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* MATRIZ DIARIA */}
+            <section className="portal-card" id="analisis-diario-card">
+              <header className="portal-card__header">
+                <div className="portal-card__heading">
+                  <h2 className="portal-card__title">Cobranza diaria. (USD)</h2>
+                  <p className="portal-card__subtitle">Desglose diario del progreso de cobranza con columna de días fija.</p>
+                </div>
+              </header>
+              <div className="portal-card__body">
+                <div className="portal-table-responsive" style={{ overflowX: 'auto', overflowY: 'visible', maxHeight: 'none', height: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th className="col-dia">Día</th>
+                        <th style={thStyle}>Cargos</th>
+                        <th style={thStyle}>Mto Cargos</th>
+                        <th style={thStyle}>Cobrado</th>
+                        <th style={thStyle}>Mto Cobrado</th>
+                        <th style={thStyle}>Pagos Parciales</th>
+                        <th style={thStyle}>Mto Descuento</th>
+                        <th style={thStyle}>Por Cobrar</th>
+                        <th style={thStyle}>Mto Por Cobrar</th>
+                        <th style={thStyle}>Cargos Post.</th>
+                        <th style={thStyle}>Mto Cargos Post.</th>
+                        <th style={thStyle}>Post. Cobrado</th>
+                        <th style={thStyle}>Mto Post. Cobrado</th>
+                        <th style={thStyle}>Post. Por Cobrar</th>
+                        <th style={thStyle}>Mto Post. Por Cobrar</th>
+                        <th style={thStyle}>Recuperados</th>
+                        <th style={thStyle}>Mto Recuperados</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailyGrid.map((row) => (
+                        <tr key={row.dia}>
+                          <td className="col-dia">{fInt(row.dia)}</td>
+                          <td style={tdStyle}>{fInt(row.v1_1_Cargos)}</td>
+                          <td style={tdStyle}>{fUSD(row.v1_2_Mto_Cargos)}</td>
+                          <td style={tdStyle}>{fInt(row.v3_1_Cobrado)}</td>
+                          <td style={tdStyle}>{fUSD(row.v3_2_Mto_Cobrado)}</td>
+                          <td style={{ ...tdStyle, color: '#ea580c' }}>{fInt(row.v3_3_Pagos_Parciales)}</td>
+                          <td style={tdStyle}>{fUSD(row.Sumdescuento_usd)}</td>
+                          <td style={tdStyle}>{fInt(row.v2_1_X_Cobrar)}</td>
+                          <td style={tdStyle}>{fUSD(row.v2_2_Mto_X_Cobrar)}</td>
+                          <td style={tdStyle}>{fInt(row.v4_1_Cargos_Post)}</td>
+                          <td style={tdStyle}>{fUSD(row.v4_2_Mto_Cargos_Post)}</td>
+                          <td style={tdStyle}>{fInt(row.v6_1_Cargos_Post_Cobrado)}</td>
+                          <td style={tdStyle}>{fUSD(row.v6_2_Mto_Cargos_Post_Cobrado)}</td>
+                          <td style={tdStyle}>{fInt(row.v5_1_Cargos_Post_X_Cobrar)}</td>
+                          <td style={tdStyle}>{fUSD(row.v5_2_Mto_Cargos_Post_X_Cobrar)}</td>
+                          <td style={tdStyle}>{fInt(row.v7_1_Recuperados)}</td>
+                          <td style={tdStyle}>{fUSD(row.v7_2_Mto_Recuperados)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td className="col-dia">TOTAL MES</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v1_1_Cargos)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v1_2_Mto_Cargos)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v3_1_Cobrado)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v3_2_Mto_Cobrado)}</td>
+                        <td style={{ ...tfStyle, background: '#fff8f1', color: '#ea580c' }}>{fInt(totals.v3_3_Pagos_Parciales)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.Sumdescuento_usd)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v2_1_X_Cobrar)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v2_2_Mto_X_Cobrar)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v4_1_Cargos_Post)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v4_2_Mto_Cargos_Post)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v6_1_Cargos_Post_Cobrado)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v6_2_Mto_Cargos_Post_Cobrado)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v5_1_Cargos_Post_X_Cobrar)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v5_2_Mto_Cargos_Post_X_Cobrar)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fInt(totals.v7_1_Recuperados)}</td>
+                        <td style={{ ...tfStyle, background: '#f8fbff' }}>{fUSD(totals.v7_2_Mto_Recuperados)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+    </ModulePage>
+  )
+}

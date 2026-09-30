@@ -1,0 +1,64 @@
+﻿
+# Dependencias
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Builds / entregas
+frontend/dist/
+backend/dist/
+dist/
+entrega_ubuntu/
+*.zip
+
+# Variables reales
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Permitir ejemplos
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Logs / temporales
+*.log
+npm-debug.log*
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Backups y temporales nuestros
+*.backup*
+*.backup_*
+*.bak
+backend_backup_pre_postgres_auth/
+backend_backup_pre_postgres_auth_*/
+release/
+repomix-output.xml
+backend/repomix-output.xml
+fix_encoding_safe.js
+fix_header_text_only.js
+backend/debug-auth-format.js
+backend/debug-auth-now.js
+backend/debug-auth-postgres.js
+~$*.docx
+
+# Documentos locales no necesarios para deploy
+*.pdf
+*.docx
+
+# Lock accidental en raiz
+/package-lock.json
+
+# Scripts temporales sensibles
+backend/scripts/reset-password-*.js
+backend/scripts/fix-password-*.js
+backend/scripts/*password*.js
+backend/scripts/*debug*.js
+
+# Scripts locales temporales
+backend/scripts/

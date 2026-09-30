@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "descripcion": "Metas mensuales de facturacion congeladas. No se recalculan desde Totalnet.",
+  "metas": {
+    "2026-08": {
+      "metaFacturacionUsd": 3692330.83,
+      "estado": "CONGELADA",
+      "origen": "CIERRE_COBRANZA",
+      "descripcion": "Monto de cargos generados confirmado para agosto 2026"
+    },
+    "2026-09": {
+      "metaFacturacionUsd": 3777944.17,
+      "estado": "CONGELADA",
+      "origen": "COBRANZA_GENERADO",
+      "descripcion": "Monto de cargos generados confirmado para septiembre 2026"
+    }
+  }
+}

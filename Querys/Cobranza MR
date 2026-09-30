@@ -1,0 +1,51 @@
+SELECT COUNT(DISTINCT id_contrato_detalle), SUM(monto_bs) monto_bs, SUM(monto_usd) monto_usd from (
+	select DISTINCT
+		dcc.id_cargo_cliente,
+		dcc.id_contrato_detalle,
+		--dcc.id_paquete,
+		--dcc.id_tipo_renglon,			
+		---dcc.concepto,
+		max(tas.id_tarifa_servicio) as id_tarifa_servicio,
+		--dcc.cantidad cantidad,			
+		--um_cargo.id_unidad_medida,
+		--case when um_cargo.abreviatura is null then '' else  um_cargo.abreviatura end AS unidad_medida,
+		/*(case 		
+			when dcc.id_tipo_renglon=1 and um_cargo.id_unidad_medida = 57 then --mes completo
+				(tas.monto_cobro*tasa*dcc.cantidad_puntos) 
+			when dcc.id_tipo_renglon=1 and um_cargo.id_unidad_medida = 55 then --dias
+				CAST((tas.monto_cobro*( dcc.cantidad/comun.read_dias_del_mes(dcc.fecha_registro::date))*tasa*dcc.cantidad_puntos) AS NUMERIC(100,2))
+			end
+		)
+		 as monto,*/
+		tas.monto_cobro*tmon.tasa monto_bs,
+		tas.monto_cobro*tmon.tasa/ 748.7864 monto_usd,
+		mon.id_moneda,
+		mon.abreviatura moneda
+		--f.nombre_franquicia nombre_franquicia,
+		--est.estatus estatus_contrato_detalle,
+		--dcc.fecha_registro,
+		--dcc.fecha_cobro
+	from  cargos_agosto_2026 dcc
+	inner join operativo.m_cliente cli on cli.id_cliente = dcc.id_cliente	
+	inner join operativo.m_contrato c on c.id_cliente = cli.id_cliente and c.id_contrato = dcc.id_contrato
+	inner join operativo.m_contrato_detalle cd on cd.id_contrato_detalle = dcc.id_contrato_detalle
+	inner join operativo.franquicia f on cd.id_franquicia = f.id_franquicia
+	LEFT join operativo.m_tarifa_servicio tas on tas.fecha_eliminacion is null and 
+		tas.id_paquete = dcc.id_paquete and 
+		(tas.id_franquicia = f.id_franquicia and (cd.id_sector <> 11362 or cd.id_sector is null) and (tas.id_sector is null or tas.id_sector <>11362 ) or  tas.id_franquicia = f.id_franquicia and tas.id_sector = cd.id_sector) AND 
+		activo = true and dcc.id_tipo_renglon in (1,9)
+		and extract(month from dcc.fecha_registro::date) = extract( month from tas.fecha_vigencia::date)
+		and extract(year from dcc.fecha_registro::date) = extract( year from tas.fecha_vigencia::date)	
+	LEFT JOIN administrativo.d_tasa_moneda tmon on tmon.id_d_tasa_moneda = (SELECT id_d_tasa_moneda FROM administrativo.tasa_moneda_read(
+		63, 
+		tas.id_moneda_cobro, 
+		'2026-08-01'
+	))
+	--LEFT JOIN comun.unidad_medida um_tarifa on um_tarifa.id_unidad_medida = tis.id_unidad_medida
+	LEFT JOIN comun.unidad_medida um_cargo on um_cargo.id_unidad_medida = dcc.id_unidad_medida
+	LEFT JOIN comun.moneda mon on (mon.id_moneda = tmon.id_moneda_base and tmon.id_moneda_base is not null ) or (mon.id_moneda = 63 and tmon.id_moneda_base is null)
+	where  dcc.id_tipo_renglon in(1,9) 
+	and dcc.fecha_creacion  = '2026-08-01 00:10:00.005469'
+	and f.id_franquicia not in (180)
+	group by dcc.id_cargo_cliente, dcc.id_contrato_detalle, tas.monto_cobro, tmon.tasa,mon.id_moneda, mon.abreviatura
+)t
