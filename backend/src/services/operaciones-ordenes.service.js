@@ -9,6 +9,11 @@ const CACHE_TTL_MS = 60 * 1000
 // El payload sigue siendo grande (miles de filas de detalle): pocas entradas
 // en memoria es la diferencia entre Cache-Control razonable y un OOM.
 const CACHE_MAX_ENTRIES = 4
+
+// Los catalogos no dependen de los filtros: son globales y casi no cambian.
+// Antes se recalculaban en cada fallo de cache, y cada calculo escanea la
+// vista entera, asi que llegaban a agotar el statement_timeout.
+const CATALOGS_TTL_MS = 30 * 60 * 1000
 const MAX_DETAIL_ROWS = 5000
 
 const OPEN_STATUSES = new Set([
@@ -18,6 +23,7 @@ const OPEN_STATUSES = new Set([
 ])
 
 const cache = new Map()
+let catalogsCache = null
 
 function normalizeText(value, fallback = '') {
   const text = String(value ?? '').trim()
@@ -228,7 +234,15 @@ function buildFilterSql(alias, filters, params) {
   return conditions
 }
 
-async function fetchSummaryRows(filters) {
+/*
+ * La vista resumen entrega 460k filas ya agrupadas. Traerlas todas a Node
+ * para volver a sumar en JavaScript costaba ~30 s y cientos de MB, asi que
+ * aqui se pide solo el agregado: SUM es asociativo, resultado identico.
+ *
+ * El conjunto () es el total general. Se marca con GROUPING() porque un
+ * tipo_orden real puede venir NULL y colisionaria con el.
+ */
+async function fetchSummaryAggregates(filters) {
   const params = []
   const conditions = buildFilterSql('r', filters, params)
 
@@ -239,33 +253,30 @@ async function fetchSummaryRows(filters) {
   const result = await totalnetQuery(
     `
       SELECT
-        r.fecha,
-        r.fecha_registro,
-        r.fecha_asignacion,
-        r.fecha_finalizacion,
-        r.zona,
-        r.franquicia,
-        r.servicio,
-        r.tipo_servicio,
+        GROUPING(r.tipo_orden) AS es_total,
         r.tipo_orden,
-        r.pendientes_meses_anteriores,
-        r.finalizadas_meses_anteriores,
-        r.canceladas_meses_anteriores,
-        r.generadas_mes_actual,
-        r.pendienes_mes_actual,
-        r.finalizadas_mes_actual,
-        r.canceladas_mes_actual,
-        r.ordenes_servicio,
-        r.contratos
+        
+        TO_CHAR(
+          DATE_TRUNC('month', r.fecha),
+          'YYYY-MM-DD'
+        ) AS mes,
+        
+        COUNT(*) AS filas,
+        
+        SUM(COALESCE(r.pendientes_meses_anteriores, 0)) AS pendientes_meses_anteriores,
+        SUM(COALESCE(r.finalizadas_meses_anteriores, 0)) AS finalizadas_meses_anteriores,
+        SUM(COALESCE(r.canceladas_meses_anteriores, 0)) AS canceladas_meses_anteriores,
+        
+        SUM(COALESCE(r.generadas_mes_actual, 0)) AS generadas_mes_actual,
+        SUM(COALESCE(r.pendienes_mes_actual, 0)) AS pendientes_mes_actual,
+        SUM(COALESCE(r.finalizadas_mes_actual, 0)) AS finalizadas_mes_actual,
+        SUM(COALESCE(r.canceladas_mes_actual, 0)) AS canceladas_mes_actual
       FROM ${SUMMARY_VIEW} r
       ${whereSql}
-      ORDER BY
-        r.fecha NULLS LAST,
-        r.zona NULLS LAST,
-        r.franquicia NULLS LAST,
-        r.servicio NULLS LAST,
-        r.tipo_servicio NULLS LAST,
-        r.tipo_orden NULLS LAST;
+      GROUP BY GROUPING SETS (
+        (r.tipo_orden, DATE_TRUNC('month', r.fecha)),
+        ()
+      );
     `,
     params,
   )
@@ -389,40 +400,45 @@ async function fetchDetailRowsSafe(filters) {
   }
 }
 async function fetchCatalogs() {
+  // Los catalogos salen de la tabla de detalle, no de la vista resumen: la vista
+  // recalcula 460k filas agregadas y sus cinco DISTINCT tardaban mas de 120 s,
+  // o sea que siempre agotaban el statement_timeout y los desplegables salian
+  // vacios. Sobre la tabla base tardan ~29 s y traen los mismos valores.
+
   const result = await totalnetQuery(
     `
       SELECT
         ARRAY(
           SELECT DISTINCT TRIM(zona::text)
-          FROM ${SUMMARY_VIEW}
+          FROM ${DETAIL_VIEW}
           WHERE NULLIF(TRIM(zona::text), '') IS NOT NULL
           ORDER BY 1
         ) AS zonas,
 
         ARRAY(
           SELECT DISTINCT TRIM(franquicia::text)
-          FROM ${SUMMARY_VIEW}
+          FROM ${DETAIL_VIEW}
           WHERE NULLIF(TRIM(franquicia::text), '') IS NOT NULL
           ORDER BY 1
         ) AS franquicias,
 
         ARRAY(
           SELECT DISTINCT TRIM(servicio::text)
-          FROM ${SUMMARY_VIEW}
+          FROM ${DETAIL_VIEW}
           WHERE NULLIF(TRIM(servicio::text), '') IS NOT NULL
           ORDER BY 1
         ) AS servicios,
 
         ARRAY(
           SELECT DISTINCT TRIM(tipo_servicio::text)
-          FROM ${SUMMARY_VIEW}
+          FROM ${DETAIL_VIEW}
           WHERE NULLIF(TRIM(tipo_servicio::text), '') IS NOT NULL
           ORDER BY 1
         ) AS tipos_servicio,
 
         ARRAY(
           SELECT DISTINCT TRIM(tipo_orden::text)
-          FROM ${SUMMARY_VIEW}
+          FROM ${DETAIL_VIEW}
           WHERE NULLIF(TRIM(tipo_orden::text), '') IS NOT NULL
           ORDER BY 1
         ) AS tipos_orden;
@@ -449,14 +465,28 @@ async function fetchCatalogs() {
 }
 
 async function fetchCatalogsSafe() {
+  const now = Date.now()
+
+  if (
+    catalogsCache &&
+    now - catalogsCache.createdAt < CATALOGS_TTL_MS
+  ) {
+    return catalogsCache.value
+  }
+
   try {
-    return await fetchCatalogs()
+    const value = await fetchCatalogs()
+
+    catalogsCache = { createdAt: now, value }
+
+    return value
   } catch (error) {
     console.error(
       '[OPERACIONES][ORDENES] No fue posible cargar catalogos:',
       getDatabaseErrorInfo(error),
     )
 
+    // El fallo no se cachea: se reintenta en la siguiente peticion.
     return {
       zonas: [],
       franquicias: [],
@@ -466,72 +496,43 @@ async function fetchCatalogsSafe() {
     }
   }
 }
-function splitIds(value) {
-  return normalizeText(value)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
 
-function normalizeSummaryRow(row = {}, index = 0) {
-  const pendientesMesesAnteriores = normalizeNumber(
-    row.pendientes_meses_anteriores,
-  )
-  const finalizadasMesesAnteriores = normalizeNumber(
-    row.finalizadas_meses_anteriores,
-  )
-  const canceladasMesesAnteriores = normalizeNumber(
-    row.canceladas_meses_anteriores,
-  )
-  const generadasMesActual = normalizeNumber(
-    row.generadas_mes_actual,
-  )
-  const pendientesMesActual = normalizeNumber(
-    row.pendienes_mes_actual,
-  )
-  const finalizadasMesActual = normalizeNumber(
-    row.finalizadas_mes_actual,
-  )
-  const canceladasMesActual = normalizeNumber(
-    row.canceladas_mes_actual,
-  )
-
+function normalizeSummaryAggregate(row = {}) {
   return {
-    id: `summary-${index}`,
-    fecha: toDateOnly(row.fecha),
-    fechaRegistro: toDateOnly(row.fecha_registro),
-    fechaAsignacion: toDateOnly(row.fecha_asignacion),
-    fechaFinalizacion: toDateOnly(row.fecha_finalizacion),
-
-    zona: normalizeText(row.zona, 'SIN ZONA'),
-    franquicia: normalizeText(
-      row.franquicia,
-      'SIN FRANQUICIA',
-    ),
-    servicio: normalizeText(
-      row.servicio,
-      'SIN SERVICIO',
-    ),
-    tipoServicio: normalizeText(
-      row.tipo_servicio,
-      'SIN TIPO SERVICIO',
-    ),
+    esTotal: Number(row.es_total) === 1,
     tipoOrden: normalizeText(
       row.tipo_orden,
       'SIN TIPO ORDEN',
     ),
 
-    pendientesMesesAnteriores,
-    finalizadasMesesAnteriores,
-    canceladasMesesAnteriores,
+    // 'YYYY-MM-DD' del primer dia del mes, o null si la vista no trae fecha.
+    fecha: row.mes || null,
 
-    generadasMesActual,
-    pendientesMesActual,
-    finalizadasMesActual,
-    canceladasMesActual,
+    // Filas del resumen que representa este grupo: permite conservar los
+    // conteos de meta sin volver a traer el detalle.
+    filas: normalizeNumber(row.filas),
 
-    ordenesServicio: splitIds(row.ordenes_servicio),
-    contratos: splitIds(row.contratos),
+    pendientesMesesAnteriores:
+      normalizeNumber(
+        row.pendientes_meses_anteriores,
+      ),
+    finalizadasMesesAnteriores:
+      normalizeNumber(
+        row.finalizadas_meses_anteriores,
+      ),
+    canceladasMesesAnteriores:
+      normalizeNumber(
+        row.canceladas_meses_anteriores,
+      ),
+
+    generadasMesActual:
+      normalizeNumber(row.generadas_mes_actual),
+    pendientesMesActual:
+      normalizeNumber(row.pendientes_mes_actual),
+    finalizadasMesActual:
+      normalizeNumber(row.finalizadas_mes_actual),
+    canceladasMesActual:
+      normalizeNumber(row.canceladas_mes_actual),
   }
 }
 
@@ -1144,7 +1145,10 @@ function buildOrderTypeBlock(summaryRows, detailRows, tipoOrden) {
 
     meta: {
       summaryRows:
-        summaryFiltered.length,
+        sumRows(
+          summaryFiltered,
+          'filas',
+        ),
 
       detailRows:
         detailFiltered.length,
@@ -1232,14 +1236,23 @@ async function getOrdenesServicioSummary(options = {}) {
    *
    * Si esta consulta falla, SI corresponde devolver error.
    */
-  const rawSummaryRows = await fetchSummaryRows(filters)
-
-  const summaryRows = rawSummaryRows.map(
-    normalizeSummaryRow,
-  )
-
+  const summaryAggregates = (
+    await fetchSummaryAggregates(filters)
+  ).map(normalizeSummaryAggregate)
+ 
+  // Una fila con esTotal es el total general; el resto son (tipo, mes).
+  const totalAggregate =
+    summaryAggregates.find(
+      (row) => row.esTotal,
+    )
+ 
+  const monthAggregates =
+    summaryAggregates.filter(
+      (row) => !row.esTotal,
+    )
+     
   const kpis = buildOperationalKpis(
-    summaryRows,
+    totalAggregate ? [totalAggregate] : [],
   )
 
   /*
@@ -1287,7 +1300,7 @@ async function getOrdenesServicioSummary(options = {}) {
 
   const orderTypeBlocks =
     buildOrderTypeBlocks(
-      summaryRows,
+      monthAggregates,
       detailRows,
     )
 
@@ -1299,7 +1312,7 @@ async function getOrdenesServicioSummary(options = {}) {
     charts: {
       historicoMensual:
         buildOperationalMonthlyHistory(
-          summaryRows,
+          monthAggregates,
         ),
 
       porZona:
@@ -1353,7 +1366,7 @@ async function getOrdenesServicioSummary(options = {}) {
         'totalnet-readonly',
 
       summaryRows:
-        summaryRows.length,
+        totalAggregate ? totalAggregate.filas : 0,
 
       detailRows:
         detailRows.length,
