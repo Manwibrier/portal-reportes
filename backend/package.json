@@ -10,7 +10,8 @@
     "auth:migrate": "node scripts/migrate-auth.js",
     "auth:create-admin": "node scripts/create-admin.js",
     "auth:bootstrap": "node scripts/bootstrap-admin.js",
-    "auth:reset-analista": "node scripts/reset-password-analista.js"
+    "auth:reset-analista": "node scripts/reset-password-analista.js",
+    "perf:stress": "node scripts/stress.js"
   },
   "dependencies": {
     "axios": "^1.16.0",
