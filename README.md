@@ -12,11 +12,11 @@ El login del frontend usa PostgreSQL, esquema `portal_auth`:
 
 PocketBase existe en el repositorio como componente legado, pero **no es la fuente del login actual**. Por lo tanto, una clave de superusuario de PocketBase no sirve para entrar al formulario del portal.
 
-## Acceso local por la red 192.168.33.94
+## Acceso local por la red 192.168.30.51
 
 El backend escucha en `0.0.0.0:3000` y Vite en `0.0.0.0:5173`.
 
-Desde la maquina `192.168.33.94`:
+Desde la maquina `192.168.30.51`:
 
 ```bash
 cd backend
@@ -37,7 +37,7 @@ npm run dev
 Desde otro equipo de la misma red abra:
 
 ```text
-http://192.168.33.94:5173
+http://192.168.30.51:5173
 ```
 
 El proxy de Vite envia `/api` al backend local en `127.0.0.1:3000`, por lo que los clientes de la red no necesitan acceder directamente al puerto 3000.
@@ -65,7 +65,7 @@ Cambie la clave despues de recuperar el acceso.
 El portal se publica por Nginx y la API queda en el mismo origen. Con los valores predeterminados:
 
 ```text
-http://192.168.33.94:8080
+http://192.168.30.51:8080
 ```
 
 En `compose.yaml`, el backend ejecuta la migracion de `portal_auth` al iniciar y crea el administrador inicial solo si todavia no existe. Defina en el entorno de la pila:

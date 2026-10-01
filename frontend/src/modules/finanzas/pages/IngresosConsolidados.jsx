@@ -18,7 +18,7 @@ const IngresosConsolidados = () => {
         if (!cancelled && result.success) {
           setData(result.data);
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) setError('Error al cargar ingresos consolidados.');
       } finally {
         if (!cancelled) setLoading(false);

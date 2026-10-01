@@ -54,11 +54,9 @@ backend/debug-auth-postgres.js
 # Lock accidental en raiz
 /package-lock.json
 
-# Scripts temporales sensibles
-backend/scripts/reset-password-*.js
-backend/scripts/fix-password-*.js
-backend/scripts/*password*.js
+# Throwaways locales dentro de backend/scripts/
+# NO ignorar backend/scripts/ en bloque: compose.yaml ejecuta
+# scripts/migrate-auth.js y scripts/bootstrap-admin.js en cada arranque y el
+# Dockerfile los copia. Si se ignoran, un clon limpio no arranca.
 backend/scripts/*debug*.js
-
-# Scripts locales temporales
-backend/scripts/
+backend/scripts/*tmp*.js

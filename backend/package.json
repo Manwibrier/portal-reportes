@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "auth:migrate": "node scripts/migrate-auth.js",
     "auth:create-admin": "node scripts/create-admin.js",
+    "auth:bootstrap": "node scripts/bootstrap-admin.js",
     "auth:reset-analista": "node scripts/reset-password-analista.js"
   },
   "dependencies": {
@@ -16,6 +17,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "pg": "^8.20.0",
     "zod": "^4.3.6",
     "zod-validation-error": "^4.0.2"

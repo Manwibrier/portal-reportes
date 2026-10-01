@@ -95,7 +95,7 @@ export default function CobranzaRegiones() {
                 pendiente: Number(kpis.montoXCobrarUsd) || 0,
                 avance: totalCargos > 0 ? (totalCobrado / totalCargos) * 100 : 0,
               }
-            } catch (requestError) {
+            } catch {
               return {
                 periodo,
                 mes: `${label} ${year}`,

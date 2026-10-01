@@ -40,6 +40,10 @@ const envSchema = z.object({
 
   AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
 
+  // Detras de nginx/Portainer la IP real llega en X-Forwarded-For.
+  // Activar solo si el backend NO se expone directo a la red.
+  TRUST_PROXY: booleanString,
+
   SMARTOLT_BASE_URL: trimmedString('https://cablenorte.smartolt.com/'),
   SMARTOLT_STATUS_PATH: trimmedString('api/onu/get_onus_statuses'),
   SMARTOLT_DETAILS_PATH: trimmedString(''),

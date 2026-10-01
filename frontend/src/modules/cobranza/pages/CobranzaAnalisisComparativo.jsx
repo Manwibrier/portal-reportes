@@ -73,7 +73,7 @@ export default function CobranzaAnalisisComparativo() {
         const res = await apiGet(`/api/cobranza/tablas?${baseParams.toString()}`)
         if (!isMounted) return
         setRawData(res?.rows || [])
-      } catch (err) {
+      } catch {
         if (isMounted) setError('Ocurrió un error general de conexión.')
       } finally {
         if (isMounted) setLoading(false)

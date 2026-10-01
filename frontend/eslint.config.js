@@ -30,6 +30,8 @@ export default defineConfig([
     files: [
       'src/components/charts/ChartWrapper.jsx',
       'src/core/routes/modulesRegistry.jsx',
+      // Módulo compartido de cobranza: exporta helpers/constantes junto a componentes.
+      'src/modules/cobranza/components/CobranzaShared.jsx',
     ],
     rules: {
       'react-refresh/only-export-components': 'off',

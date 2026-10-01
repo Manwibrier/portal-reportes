@@ -39,18 +39,18 @@ docker compose up -d
 
 El backend espera a PostgreSQL, ejecuta la migracion `portal_auth` y crea el administrador inicial si no existe un usuario activo con ese correo.
 
-## Acceso en 192.168.33.94
+## Acceso en 192.168.30.51
 
-Con `PORTAL_BIND=0.0.0.0` o `PORTAL_BIND=192.168.33.94` y `PORTAL_HTTP_PORT=8080`:
+Con `PORTAL_BIND=0.0.0.0` o `PORTAL_BIND=192.168.30.51` y `PORTAL_HTTP_PORT=8080`:
 
 ```text
-http://192.168.33.94:8080
+http://192.168.30.51:8080
 ```
 
 Health:
 
 ```text
-http://192.168.33.94:8080/api/health
+http://192.168.30.51:8080/api/health
 ```
 
 ## Recuperar la clave del usuario analista

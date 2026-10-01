@@ -488,6 +488,16 @@ function extractRows(payload) {
   return []
 }
 
+let missingTokenWarned = false
+
+function warnMissingTokenOnce() {
+  if (missingTokenWarned) return
+  missingTokenWarned = true
+  console.warn(
+    'SmartOLT: SMARTOLT_API_TOKEN vacio; se omiten las consultas al API.'
+  )
+}
+
 function buildCacheKey(path = '', params = {}) {
   return JSON.stringify({
     path,
@@ -524,6 +534,13 @@ async function requestJson(path, params = {}) {
   const url = buildSmartOltUrl(path)
 
   if (!url) return null
+
+  // Sin token configurado no tiene sentido llamar: el API responde 403 y
+  // solo llena el log. Devolvemos null (la capa superior degrada a []).
+  if (!normalizeText(env.SMARTOLT_API_TOKEN)) {
+    warnMissingTokenOnce()
+    return null
+  }
 
   const cacheKey = buildCacheKey(path, params)
   const cached = getCached(cacheKey)

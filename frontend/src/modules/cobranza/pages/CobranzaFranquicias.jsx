@@ -417,11 +417,6 @@ function buildSummary(rows = []) {
   )
 }
 
-function getDefaultZoneKey(hierarchy = []) {
-  const andes = hierarchy.find((zone) => normalizeComparable(zone.label) === DEFAULT_ZONA)
-  return andes?.key || hierarchy[0]?.key || ''
-}
-
 function toRadians(angle) {
   return (angle * Math.PI) / 180
 }
@@ -1010,10 +1005,14 @@ function FranquiciasPostChargeSummary({ rows = [] }) {
 function CobranzaFranquiciasFilters({ filters, loading, onApply }) {
   const resolvedPeriod = filters?.periodo || getDefaultPeriodValue()
   const [draftPeriod, setDraftPeriod] = useState(resolvedPeriod)
+  const [lastPeriodo, setLastPeriodo] = useState(filters?.periodo)
 
-  useEffect(() => {
-    setDraftPeriod(filters?.periodo || getDefaultPeriodValue())
-  }, [filters?.periodo])
+  // Ajuste durante el render (no en un effect): evita el setState síncrono que
+  // dispara renders en cascada cuando el filtro aplicado cambia.
+  if (filters?.periodo !== lastPeriodo) {
+    setLastPeriodo(filters?.periodo)
+    setDraftPeriod(resolvedPeriod)
+  }
 
   const periodLabel = useMemo(
     () => formatPeriodDisplayLabel(draftPeriod),
@@ -1505,8 +1504,6 @@ function CobranzaFranquicias() {
   const aggregateRows = useMemo(() => normalizeFranquiciaRows(data), [data])
   const hierarchy = useMemo(() => buildHierarchy(aggregateRows), [aggregateRows])
 
-  const selectedZoneKey = visualFilter.zoneKey
-
   const displayRows = useMemo(() => {
     let rows = ensureArray(aggregateRows)
 
@@ -1552,13 +1549,6 @@ function CobranzaFranquicias() {
         officeKey: '',
       }
     })
-  }
-
-  const handleSelectOffice = (officeKey) => {
-    setVisualFilter((current) => ({
-      ...current,
-      officeKey,
-    }))
   }
 
   return (

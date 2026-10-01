@@ -3,7 +3,7 @@ const { env } = require('./config/env')
 const { closePool } = require('./config/database')
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {
-  console.log(`Servidor backend en http://0.0.0.0:${env.PORT} y http://192.168.33.94:${env.PORT}`)
+  console.log(`Servidor backend en http://0.0.0.0:${env.PORT} y http://192.168.30.51:${env.PORT}`)
 })
 
 let isShuttingDown = false

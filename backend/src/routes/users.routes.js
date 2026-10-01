@@ -26,7 +26,9 @@ const roleFieldSchema = z
   .transform((value) => (Array.isArray(value) ? value : [value]))
 
 const idSchema = z.object({
-  id: z.string().trim().min(1).max(80),
+  // La columna es uuid: sin esto, un id inválido ("me", "abc") llega a Postgres
+  // y revienta con 500 (22P02) en vez de un 400 de validación.
+  id: z.string().trim().uuid(),
 })
 
 const listQuerySchema = z.object({
