@@ -7,72 +7,24 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-portal_reportes}
-      POSTGRES_USER: ${POSTGRES_USER:-portal_reportes}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
-      TZ: ${TZ:-America/Caracas}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - portal_internal
-    logging: *default-logging
-
-  pocketbase:
-    build:
-      context: ./deploy/pocketbase
-      args:
-        PB_VERSION: ${PB_VERSION:-0.39.10}
-    restart: unless-stopped
-    environment:
-      PB_SUPERUSER_EMAIL: ${PB_SUPERUSER_EMAIL:?PB_SUPERUSER_EMAIL es obligatorio}
-      PB_SUPERUSER_PASSWORD: ${PB_SUPERUSER_PASSWORD:?PB_SUPERUSER_PASSWORD es obligatorio}
-      PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
-      PORTAL_ADMIN_NAME: ${PORTAL_ADMIN_NAME:-Administrador}
-      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:?PORTAL_ADMIN_EMAIL es obligatorio}
-      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD:?PORTAL_ADMIN_PASSWORD es obligatorio}
-      TZ: ${TZ:-America/Caracas}
-      GOMEMLIMIT: ${PB_GOMEMLIMIT:-512MiB}
-    volumes:
-      - pocketbase_data:/pb/pb_data
-    ports:
-      - "${POCKETBASE_BIND:-127.0.0.1}:${POCKETBASE_PORT:-8090}:8090"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    networks:
-      - portal_internal
-    logging: *default-logging
-
   backend:
     build:
       context: ./backend
     restart: unless-stopped
     init: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       PORT: 3000
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-*}
 
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-portal_reportes}
-      DB_USER: ${POSTGRES_USER:-portal_reportes}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
-      DB_SSL: "false"
+      DB_HOST: ${DB_HOST:?DB_HOST es obligatorio}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:?DB_NAME es obligatorio}
+      DB_USER: ${DB_USER:?DB_USER es obligatorio}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatorio}
+      DB_SSL: ${DB_SSL:-false}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-10000}
@@ -80,17 +32,6 @@ services:
       DB_QUERY_TIMEOUT_MS: ${DB_QUERY_TIMEOUT_MS:-120000}
       DB_APP_NAME: portal-reportes-backend
       DEFAULT_WINDOW_MONTHS: ${DEFAULT_WINDOW_MONTHS:-12}
-
-      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-12}
-      PORTAL_ADMIN_NAME: ${PORTAL_ADMIN_NAME:-Administrador}
-      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:?PORTAL_ADMIN_EMAIL es obligatorio}
-      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD:?PORTAL_ADMIN_PASSWORD es obligatorio}
-
-      POCKETBASE_URL: http://pocketbase:8090
-      POCKETBASE_ADMIN_EMAIL: ${PB_SUPERUSER_EMAIL:?PB_SUPERUSER_EMAIL es obligatorio}
-      POCKETBASE_ADMIN_PASSWORD: ${PB_SUPERUSER_PASSWORD:?PB_SUPERUSER_PASSWORD es obligatorio}
-      POCKETBASE_USERS_COLLECTION: users
-      POCKETBASE_SESSION_AUDITS_COLLECTION: session_audits
 
       SMARTOLT_BASE_URL: ${SMARTOLT_BASE_URL:-https://cablenorte.smartolt.com/}
       SMARTOLT_STATUS_PATH: ${SMARTOLT_STATUS_PATH:-api/onu/get_onus_statuses}
@@ -105,15 +46,6 @@ services:
       OPERACIONES_ORDENES_SCHEMA: ${OPERACIONES_ORDENES_SCHEMA:-powerbi}
       OPERACIONES_ORDENES_TABLE: ${OPERACIONES_ORDENES_TABLE:-ordenes_servicio}
       TZ: ${TZ:-America/Caracas}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      pocketbase:
-        condition: service_healthy
-    command:
-      - sh
-      - -c
-      - node scripts/migrate-auth.js && node scripts/bootstrap-admin.js && exec node src/server.js
     expose:
       - "3000"
     healthcheck:
@@ -144,7 +76,3 @@ services:
 networks:
   portal_internal:
     driver: bridge
-
-volumes:
-  postgres_data:
-  pocketbase_data:
