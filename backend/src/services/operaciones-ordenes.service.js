@@ -6,7 +6,9 @@ const SUMMARY_VIEW = 'powerbi.resumen_ordenes_servicio'
 const DETAIL_VIEW = 'powerbi.ordenes_servicio'
 
 const CACHE_TTL_MS = 60 * 1000
-const CACHE_MAX_ENTRIES = 24
+// El payload sigue siendo grande (miles de filas de detalle): pocas entradas
+// en memoria es la diferencia entre Cache-Control razonable y un OOM.
+const CACHE_MAX_ENTRIES = 4
 const MAX_DETAIL_ROWS = 5000
 
 const OPEN_STATUSES = new Set([
@@ -162,9 +164,6 @@ function isOptionalDetailDatabaseError(error) {
     '3F000',
   ].includes(code)
 }
-function cloneValue(value) {
-  return JSON.parse(JSON.stringify(value))
-}
 
 function pruneCache() {
   const now = Date.now()
@@ -191,15 +190,17 @@ function getCached(key) {
 
   const entry = cache.get(key)
 
-  return entry ? cloneValue(entry.value) : null
+  return entry ? entry.value : null
 }
 
+// Sin copia profunda: la respuesta se serializa tal cual y nadie la muta.
+// Clonar el payload entero por peticion era lo que tumbaba el contenedor.
 function setCached(key, value) {
   pruneCache()
 
   cache.set(key, {
     createdAt: Date.now(),
-    value: cloneValue(value),
+    value,
   })
 }
 
@@ -1319,13 +1320,10 @@ async function getOrdenesServicioSummary(options = {}) {
 
     technicians,
 
+    // No se vuelcan las filas crudas del resumen: son ~460k filas con listas de
+    // IDs anidadas (26 MB solo en texto) y ningun consumidor las lee.
+    // El total sigue disponible en meta.summaryRows.
     tables: {
-      resumenOrdenesServicio:
-        summaryRows,
-
-      ordenesServicio:
-        detailRows,
-
       detalleOrdenes:
         detailRows,
 
@@ -1399,9 +1397,7 @@ async function getOrdenesServicioSummary(options = {}) {
     response,
   )
 
-  return cloneValue(
-    response,
-  )
+  return response
 }
 
 module.exports = {

@@ -12,10 +12,15 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
+    # Techo de memoria del backend: evita que un pico de payload se coma el host.
+    # Ajustar con BACKEND_MEM_LIMIT / BACKEND_NODE_OPTIONS si el host es pequeno.
+    mem_limit: ${BACKEND_MEM_LIMIT:-2g}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
+      # V8 recoge basura antes de que el cgroup mate el proceso.
+      NODE_OPTIONS: ${BACKEND_NODE_OPTIONS:---max-old-space-size=1536}
       PORT: 3000
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-*}
 
